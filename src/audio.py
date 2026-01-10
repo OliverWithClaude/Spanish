@@ -7,6 +7,38 @@ import asyncio
 import tempfile
 import os
 from pathlib import Path
+import sys
+
+# Add FFmpeg to PATH if not already available (Windows WinGet installation)
+def _setup_ffmpeg():
+    """Find and add FFmpeg to PATH for Whisper"""
+    try:
+        import subprocess
+        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        # FFmpeg not in PATH, try to find it
+        possible_paths = [
+            # WinGet installation path
+            Path.home() / "AppData/Local/Microsoft/WinGet/Packages",
+            # Common installation paths
+            Path("C:/ffmpeg/bin"),
+            Path("C:/Program Files/ffmpeg/bin"),
+            Path("C:/Program Files (x86)/ffmpeg/bin"),
+        ]
+
+        for base_path in possible_paths:
+            if base_path.exists():
+                # Search for ffmpeg.exe
+                for ffmpeg_exe in base_path.rglob("ffmpeg.exe"):
+                    ffmpeg_dir = str(ffmpeg_exe.parent)
+                    if ffmpeg_dir not in os.environ.get("PATH", ""):
+                        os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+                        print(f"Added FFmpeg to PATH: {ffmpeg_dir}")
+                    return True
+    return True
+
+_setup_ffmpeg()
+
 import edge_tts
 import whisper
 import soundfile as sf

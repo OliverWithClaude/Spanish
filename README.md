@@ -4,6 +4,19 @@ AI-powered Spanish learning application focused on **speaking and listening skil
 
 ## Features
 
+### Learning Path (CEFR-Aligned)
+- Structured curriculum from A1 to A2 levels
+- **429 vocabulary words** and **204 phrases** across 15 units
+- 3 sections: Survival Basics, Daily Life, Workplace Basics
+- Progress tracking with XP and levels
+- Unit unlock system based on progress
+
+### AI Coach
+- Daily personalized recommendations
+- Track daily goals (XP, words reviewed, pronunciation practice)
+- Streak tracking with visual indicators
+- Smart suggestions based on your progress
+
 ### Speaking Practice
 - Get random Spanish phrases from various categories
 - Listen to native pronunciation (Castilian Spanish - Madrid accent)
@@ -24,19 +37,33 @@ AI-powered Spanish learning application focused on **speaking and listening skil
 - Multiple categories: greetings, workplace, smalltalk
 
 ### Vocabulary Review
-- Spaced repetition flashcard system (SM-2 algorithm)
+- Enhanced spaced repetition (SM-2 algorithm with 4+ recall requirement)
+- Word states: New, Learning, Learned, Struggling
+- Auto-play pronunciation on each word
 - Hidden translations for proper recall practice
-- Audio pronunciation for each word
 - Rate your recall: Again / Hard / Good / Easy
+- XP rewards for reviews
 
 ### Grammar Help
 - AI-powered grammar explanations
 - Analyze any Spanish phrase
 
 ### Progress Tracking
-- Track practice sessions and time
-- Monitor accuracy improvements
-- See vocabulary due for review
+- XP scoring system (500 XP per level)
+- Daily streak tracking
+- Words learning vs mastered counts
+- Practice sessions and accuracy stats
+- Vocabulary due for review
+
+## Learning Content
+
+| Section | Level | Units | Words |
+|---------|-------|-------|-------|
+| A1.1 - Survival Basics | A1 | 5 | ~140 |
+| A1.2 - Daily Life | A1 | 5 | ~140 |
+| A2.1 - Workplace Basics | A2 | 5 | ~150 |
+
+**Units include:** Greetings, Numbers, Questions, Family, Time, Food, Restaurant, Shopping, Colors, Weather, Office, Meetings, Communication, Asking for Help, Common Verbs, plus Madrid Slang
 
 ## Tech Stack
 
@@ -57,7 +84,7 @@ AI-powered Spanish learning application focused on **speaking and listening skil
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/Spanish.git
+git clone https://github.com/OliverWithClaude/Spanish.git
 cd Spanish
 
 # Create virtual environment
@@ -102,14 +129,23 @@ source venv/bin/activate  # Linux/Mac
 
 # Run the app
 python app.py
+
+# Or specify a custom port
+python app.py 7861
 ```
 
-The app will start at **http://127.0.0.1:7860**
+The app will start at **http://127.0.0.1:7860** (or your specified port)
 
 ## Usage Guide
 
+### Home Tab
+- View your AI Coach recommendations
+- Check XP level and streak
+- Learn 5 new words at a time
+- View the full learning path
+
 ### Speaking Practice
-1. Select a category (greetings, workplace, smalltalk, etc.)
+1. Select a category and voice
 2. Click **"Get New Phrase"** - audio plays automatically
 3. Listen to the native pronunciation
 4. Record yourself saying the phrase
@@ -122,21 +158,29 @@ The app will start at **http://127.0.0.1:7860**
 4. Use voice input to speak your messages directly
 
 ### Vocabulary Review
-1. Click **"Get Word to Review"** - shows Spanish only
+1. Click **"Get Word"** - audio plays automatically
 2. Try to recall the English meaning
-3. Click **"Reveal Translation"** to check
-4. Rate how well you remembered
+3. Click **"Reveal"** to check
+4. Rate how well you remembered (gets next word automatically)
 
-## Content Categories
+## Project Structure
 
-| Category | Description | Examples |
-|----------|-------------|----------|
-| Greetings | Basic greetings and farewells | Buenos días, Hasta luego |
-| Workplace | Office and meeting phrases | ¿Tienes un momento?, Quedamos a las tres |
-| Smalltalk | Coffee break conversations | ¿Qué tal el fin de semana? |
-| Numbers | 1-1000 | uno, dos, cien, mil |
-| Time | Days and time expressions | lunes, mañana, la semana que viene |
-| Slang | Madrid-specific expressions | ¡Mola!, Tío/Tía, Ir de cañas |
+```
+Spanish/
+├── app.py                    # Main Gradio application
+├── requirements.txt          # Python dependencies
+├── README.md                 # This file
+├── PROPOSAL.md               # Original design proposal
+├── LEARNING_PATH_PROPOSAL.md # Learning path design
+├── data/                     # SQLite database (created on first run)
+│   └── hablaconmigo.db
+└── src/
+    ├── __init__.py
+    ├── audio.py              # Whisper STT & Edge TTS (auto-detects FFmpeg)
+    ├── llm.py                # Ollama integration
+    ├── database.py           # SQLite with learning path & XP system
+    └── content.py            # 429 vocabulary words, 204 phrases
+```
 
 ## Configuration
 
@@ -152,24 +196,6 @@ DEFAULT_MODEL = "llama3.2:latest"  # or any Ollama model
 
 - **Female**: es-ES-ElviraNeural (María)
 - **Male**: es-ES-AlvaroNeural (Carlos)
-
-## Project Structure
-
-```
-Spanish/
-├── app.py              # Main Gradio application
-├── requirements.txt    # Python dependencies
-├── README.md          # This file
-├── PROPOSAL.md        # Original design proposal
-├── data/              # SQLite database (created on first run)
-│   └── hablaconmigo.db
-└── src/
-    ├── __init__.py
-    ├── audio.py       # Whisper STT & Edge TTS
-    ├── llm.py         # Ollama integration
-    ├── database.py    # SQLite database operations
-    └── content.py     # Initial Spanish content (100+ phrases)
-```
 
 ## Troubleshooting
 
@@ -190,7 +216,8 @@ ollama serve
 
 ### "File not found" error on pronunciation
 - FFmpeg is not installed or not in PATH
-- Install FFmpeg and restart the app
+- The app auto-detects FFmpeg from WinGet installation on Windows
+- If still failing, manually add FFmpeg to your system PATH
 
 ## License
 

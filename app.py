@@ -32,7 +32,15 @@ from src.database import (
     record_pronunciation_attempt,
     get_statistics,
     start_session,
-    end_session
+    end_session,
+    get_sections,
+    get_units,
+    get_user_progress,
+    get_vocabulary_stats,
+    get_recommended_activities,
+    get_daily_goal_progress,
+    get_xp_for_level,
+    introduce_new_words
 )
 from src.content import populate_database
 
@@ -205,16 +213,18 @@ def transcribe_voice_input(audio_file):
 current_vocab_english = ""
 
 def get_vocab_for_review():
-    """Get vocabulary items due for review - hide English initially"""
+    """Get vocabulary items due for review - hide English initially, autoplay audio"""
     global current_vocab_english
     vocab = get_vocabulary_for_review(limit=1)
     if vocab:
         item = vocab[0]
         current_vocab_english = item['english']
-        # Return Spanish but hide English (show placeholder)
-        return item['spanish'], "Click 'Reveal' to see translation", item['id'], ""
+        # Generate audio for autoplay
+        audio_path = text_to_speech(item['spanish'], "female")
+        # Return Spanish but hide English (show placeholder), plus audio
+        return item['spanish'], "Click 'Reveal' to see translation", item['id'], "", audio_path
     current_vocab_english = ""
-    return "No vocabulary due for review!", "", None, ""
+    return "No vocabulary due for review!", "", None, "", None
 
 
 def reveal_vocab_translation():
@@ -235,11 +245,11 @@ def play_vocab_audio(spanish_word: str):
 
 
 def submit_vocab_review(vocab_id: int, quality: int):
-    """Submit vocabulary review result"""
+    """Submit vocabulary review result and get next word with autoplay"""
     if vocab_id:
         update_vocabulary_progress(vocab_id, quality)
         return get_vocab_for_review()
-    return "No vocabulary selected", "", None, ""
+    return "No vocabulary selected", "", None, "", None
 
 
 def get_vocab_help(word: str):
@@ -286,18 +296,207 @@ def explain_phrase_grammar(phrase: str):
     return "Enter a Spanish phrase to analyze."
 
 
+# ============ Learning Path Tab ============
+
+def get_learning_path_display():
+    """Generate visual learning path display"""
+    sections = get_sections()
+    units = get_units()
+    progress = get_user_progress()
+
+    # Build unit lookup by section
+    units_by_section = {}
+    for unit in units:
+        section_id = unit['section_id']
+        if section_id not in units_by_section:
+            units_by_section[section_id] = []
+        units_by_section[section_id].append(unit)
+
+    # Build markdown display
+    md = "## Your Learning Journey\n\n"
+
+    for section in sections:
+        section_id = section['id']
+        is_unlocked = section['is_unlocked']
+
+        # Section header
+        lock_icon = "" if is_unlocked else " (Locked)"
+        completed_units = section.get('completed_units', 0)
+        total_units = section.get('total_units', 0)
+
+        md += f"### {'🔓' if is_unlocked else '🔒'} {section['name']}{lock_icon}\n"
+        md += f"*{section['description']}*\n\n"
+
+        if section_id in units_by_section:
+            for unit in units_by_section[section_id]:
+                unit_unlocked = unit['is_unlocked']
+                unit_completed = unit['is_completed']
+                word_count = unit.get('word_count', 0)
+                phrase_count = unit.get('phrase_count', 0)
+
+                # Unit status icon
+                if unit_completed:
+                    status_icon = "✅"
+                elif unit_unlocked:
+                    status_icon = "📖"
+                else:
+                    status_icon = "🔒"
+
+                md += f"  {status_icon} **{unit['name']}** ({word_count} words, {phrase_count} phrases)\n"
+
+        md += "\n---\n\n"
+
+    return md
+
+
+def get_xp_display():
+    """Get XP and level display"""
+    progress = get_user_progress()
+    total_xp = progress.get('total_xp', 0)
+    level = progress.get('current_level', 1)
+    streak = progress.get('streak_days', 0)
+    longest_streak = progress.get('longest_streak', 0)
+
+    # Calculate progress to next level
+    current_level_xp = get_xp_for_level(level)
+    next_level_xp = get_xp_for_level(level + 1)
+    xp_in_level = total_xp - current_level_xp + 500  # Adjust for level calculation
+    xp_needed = 500  # Fixed 500 XP per level
+    progress_pct = min(100, int((xp_in_level / xp_needed) * 100))
+
+    # XP progress bar
+    bar_filled = int(progress_pct / 5)
+    bar_empty = 20 - bar_filled
+    progress_bar = "█" * bar_filled + "░" * bar_empty
+
+    md = f"""
+## Level {level}
+
+**Total XP:** {total_xp}
+
+**Progress to Level {level + 1}:**
+`[{progress_bar}]` {progress_pct}%
+
+**Streak:** {streak} days {"🔥" * min(streak, 7)}
+**Longest Streak:** {longest_streak} days
+
+---
+
+### Vocabulary Progress
+"""
+
+    vocab_stats = get_vocabulary_stats()
+    md += f"""
+| Status | Count |
+|--------|-------|
+| 🆕 New | {vocab_stats.get('new', 0)} |
+| 📖 Learning | {vocab_stats.get('learning', 0)} |
+| ✅ Learned | {vocab_stats.get('learned', 0)} |
+| ⚠️ Struggling | {vocab_stats.get('struggling', 0)} |
+| 🔄 Due for Review | {vocab_stats.get('due', 0)} |
+| **Total** | {vocab_stats.get('total', 0)} |
+"""
+
+    return md
+
+
+def get_ai_coach_display():
+    """Get AI Coach recommendations"""
+    recommendations = get_recommended_activities()
+    daily = get_daily_goal_progress()
+    progress = get_user_progress()
+    streak = progress.get('streak_days', 0)
+
+    # Build greeting
+    if streak > 0:
+        greeting = f"Great to see you! You're on a **{streak}-day streak**! 🔥"
+    else:
+        greeting = "Welcome back! Let's start learning today!"
+
+    md = f"""
+## Your AI Coach
+
+{greeting}
+
+---
+
+### Daily Goals
+
+| Goal | Progress |
+|------|----------|
+| XP Today | {daily['xp_today']} / {daily['xp_goal']} |
+| Words Reviewed | {daily['words_reviewed']} / {daily['words_goal']} |
+| Pronunciation Practice | {daily['pronunciations']} / {daily['pronunciation_goal']} |
+
+---
+
+### Recommended Activities
+
+"""
+
+    for rec in recommendations:
+        emoji = {
+            'review': '📚',
+            'new_words': '🆕',
+            'pronunciation': '🎤',
+            'conversation': '💬'
+        }.get(rec['type'], '📌')
+
+        md += f"**{emoji} {rec['title']}**\n"
+        md += f"*{rec['description']}* (+{rec['xp_reward']} XP)\n\n"
+
+    return md
+
+
+def get_new_words_display():
+    """Introduce new words to learn"""
+    new_words = introduce_new_words(5)
+
+    if not new_words:
+        return "No new words available right now. Complete more units to unlock new vocabulary!"
+
+    md = "## New Words to Learn\n\n"
+
+    for word in new_words:
+        md += f"**{word['spanish']}** - {word['english']}\n"
+        if word.get('example_sentence'):
+            md += f"*{word['example_sentence']}*\n"
+        md += "\n"
+
+    md += "\n*These words have been added to your review queue!*"
+
+    return md
+
+
 # ============ Statistics Tab ============
 
 def get_stats_display():
     """Get formatted statistics"""
     stats = get_statistics()
+    progress = get_user_progress()
+
     return f"""
 ## Your Learning Progress
 
+### Overall Stats
+| Metric | Value |
+|--------|-------|
+| **Level** | {progress.get('current_level', 1)} |
+| **Total XP** | {progress.get('total_xp', 0)} |
+| **Current Streak** | {progress.get('streak_days', 0)} days |
+| **Longest Streak** | {progress.get('longest_streak', 0)} days |
+
+### Content Progress
 | Metric | Value |
 |--------|-------|
 | Total Vocabulary | {stats['total_vocabulary']} words |
+| Words Learning | {progress.get('words_learning', 0)} |
+| Words Mastered | {progress.get('words_mastered', 0)} |
 | Total Phrases | {stats['total_phrases']} phrases |
+
+### Practice Stats
+| Metric | Value |
+|--------|-------|
 | Practice Sessions | {stats['total_sessions']} |
 | Total Practice Time | {stats['total_practice_minutes']} minutes |
 | Average Accuracy | {stats['average_accuracy']}% |
@@ -318,54 +517,65 @@ def create_app():
         theme=gr.themes.Soft(primary_hue="orange")
     ) as app:
 
-        gr.Markdown("""
-        # 🇪🇸 HablaConmigo - Learn Spanish
-        ### Your AI-powered Spanish learning companion, focused on Madrid workplace conversations
-        """)
+        gr.Markdown("# 🇪🇸 HablaConmigo - Learn Spanish")
 
         with gr.Tabs():
 
+            # ============ Learning Path Tab (HOME) ============
+            with gr.Tab("🏠 Home"):
+                with gr.Row():
+                    with gr.Column(scale=2):
+                        ai_coach_display = gr.Markdown()
+                    with gr.Column(scale=1):
+                        xp_display = gr.Markdown()
+
+                with gr.Row():
+                    refresh_home_btn = gr.Button("🔄 Refresh", size="sm", scale=1)
+                    learn_new_btn = gr.Button("🆕 Learn 5 New Words", variant="primary", scale=2)
+
+                new_words_display = gr.Markdown()
+
+                with gr.Accordion("📚 Learning Path", open=False):
+                    learning_path_display = gr.Markdown()
+                    refresh_path_btn = gr.Button("Refresh Path")
+
+                # Event handlers
+                refresh_home_btn.click(get_ai_coach_display, outputs=[ai_coach_display])
+                refresh_home_btn.click(get_xp_display, outputs=[xp_display])
+                refresh_path_btn.click(get_learning_path_display, outputs=[learning_path_display])
+                learn_new_btn.click(get_new_words_display, outputs=[new_words_display])
+
+                # Load on startup
+                app.load(get_ai_coach_display, outputs=[ai_coach_display])
+                app.load(get_xp_display, outputs=[xp_display])
+                app.load(get_learning_path_display, outputs=[learning_path_display])
+
             # ============ Speaking Practice Tab ============
             with gr.Tab("🎤 Speaking Practice"):
-                gr.Markdown("### Practice your pronunciation")
-
                 with gr.Row():
                     category_select = gr.Dropdown(
                         choices=["all", "greetings", "workplace", "smalltalk", "numbers", "time", "slang"],
-                        value="all",
-                        label="Category"
+                        value="all", label="Category", scale=1
                     )
-                    new_phrase_btn = gr.Button("Get New Phrase", variant="primary")
+                    voice_select = gr.Radio(choices=["female", "male"], value="female", label="Voice", scale=1)
+                    new_phrase_btn = gr.Button("Get New Phrase", variant="primary", scale=1)
+                    play_btn = gr.Button("🔊 Listen", scale=1)
 
                 with gr.Row():
-                    with gr.Column():
-                        spanish_phrase = gr.Textbox(label="Spanish Phrase", interactive=False)
-                        english_phrase = gr.Textbox(label="English Translation", interactive=False)
-                        phrase_notes = gr.Textbox(label="Notes", interactive=False)
+                    spanish_phrase = gr.Textbox(label="Spanish", interactive=False, scale=2)
+                    english_phrase = gr.Textbox(label="English", interactive=False, scale=2)
+                    phrase_notes = gr.Textbox(label="Notes", interactive=False, scale=1)
 
-                    with gr.Column():
-                        voice_select = gr.Radio(
-                            choices=["female", "male"],
-                            value="female",
-                            label="Voice"
-                        )
-                        play_btn = gr.Button("🔊 Listen Again")
-                        phrase_audio = gr.Audio(label="Native Pronunciation", type="filepath", autoplay=True)
-
-                gr.Markdown("### Record Your Voice")
-                with gr.Row():
-                    user_recording = gr.Audio(
-                        label="Your Recording",
-                        sources=["microphone"],
-                        type="filepath"
-                    )
-                    evaluate_btn = gr.Button("Evaluate My Pronunciation", variant="primary")
+                phrase_audio = gr.Audio(label="Native Pronunciation", type="filepath", autoplay=True, visible=True)
 
                 with gr.Row():
-                    accuracy_score = gr.Number(label="Accuracy Score", value=0)
-                    word_comparison = gr.Textbox(label="Word-by-Word Analysis", lines=5)
+                    user_recording = gr.Audio(label="Your Recording", sources=["microphone"], type="filepath", scale=2)
+                    evaluate_btn = gr.Button("Evaluate My Pronunciation", variant="primary", scale=1)
 
-                feedback_text = gr.Textbox(label="Detailed Feedback", lines=4)
+                with gr.Row():
+                    accuracy_score = gr.Number(label="Accuracy", value=0, scale=1)
+                    word_comparison = gr.Textbox(label="Word Analysis", lines=3, scale=2)
+                    feedback_text = gr.Textbox(label="Feedback", lines=3, scale=2)
 
                 # Event handlers
                 new_phrase_btn.click(
@@ -386,43 +596,25 @@ def create_app():
 
             # ============ Conversation Tab ============
             with gr.Tab("💬 Conversation"):
-                gr.Markdown("""
-                ### Practice conversation with your AI colleague from Madrid
-                Type in Spanish (or English if stuck). They will respond in Spanish and gently correct mistakes.
-                """)
-
                 with gr.Row():
                     conv_voice_select = gr.Radio(
-                        choices=["female", "male"],
-                        value="female",
-                        label="Conversation Partner",
-                        info="Female = María, Male = Carlos"
+                        choices=["female", "male"], value="female",
+                        label="Partner (María/Carlos)", scale=1
                     )
+                    clear_btn = gr.Button("Clear Chat", scale=1)
 
-                chatbot = gr.Chatbot(label="Conversation", height=400)
-
-                with gr.Row():
-                    with gr.Column(scale=4):
-                        user_input = gr.Textbox(
-                            label="Your message",
-                            placeholder="Type here or use voice input below...",
-                            lines=2
-                        )
-                    with gr.Column(scale=1):
-                        send_btn = gr.Button("Send", variant="primary")
-                        clear_btn = gr.Button("Clear Chat")
+                chatbot = gr.Chatbot(label="Conversation", height=300)
 
                 with gr.Row():
-                    voice_input = gr.Audio(
-                        label="Or speak your message",
-                        sources=["microphone"],
-                        type="filepath"
-                    )
-                    transcribe_btn = gr.Button("Transcribe Voice")
+                    user_input = gr.Textbox(label="Your message", placeholder="Type in Spanish...", lines=1, scale=4)
+                    send_btn = gr.Button("Send", variant="primary", scale=1)
 
                 with gr.Row():
-                    speak_response_btn = gr.Button("🔊 Hear Again")
-                    response_audio = gr.Audio(label="AI Response Audio", type="filepath", autoplay=True)
+                    voice_input = gr.Audio(label="Voice input", sources=["microphone"], type="filepath", scale=2)
+                    transcribe_btn = gr.Button("Transcribe", scale=1)
+                    speak_response_btn = gr.Button("🔊 Hear Again", scale=1)
+
+                response_audio = gr.Audio(label="AI Response", type="filepath", autoplay=True)
 
                 # Event handlers
                 send_btn.click(
@@ -449,30 +641,26 @@ def create_app():
 
             # ============ Listening Tab ============
             with gr.Tab("👂 Listening"):
-                gr.Markdown("### Dictation Exercise - Listen and type what you hear")
-
                 with gr.Row():
                     listen_category = gr.Dropdown(
                         choices=["all", "greetings", "workplace", "smalltalk"],
-                        value="all",
-                        label="Category"
+                        value="all", label="Category", scale=1
                     )
-                    new_listen_btn = gr.Button("New Exercise", variant="primary")
+                    new_listen_btn = gr.Button("New Exercise", variant="primary", scale=1)
+                    play_again_btn = gr.Button("🔊 Play Again", scale=1)
 
-                listen_audio = gr.Audio(label="Listen carefully...", type="filepath")
-                play_again_btn = gr.Button("🔊 Play Again")
+                listen_audio = gr.Audio(label="Listen...", type="filepath")
 
-                user_answer = gr.Textbox(
-                    label="Type what you heard",
-                    placeholder="Type the Spanish phrase here..."
-                )
-                check_btn = gr.Button("Check Answer", variant="primary")
+                with gr.Row():
+                    user_answer = gr.Textbox(label="Type what you heard", placeholder="Spanish phrase...", scale=3)
+                    check_btn = gr.Button("Check", variant="primary", scale=1)
 
-                listen_result = gr.Textbox(label="Result", lines=3)
+                listen_result = gr.Textbox(label="Result", lines=2)
 
                 with gr.Accordion("Show Answer", open=False):
-                    correct_spanish = gr.Textbox(label="Spanish")
-                    correct_english = gr.Textbox(label="English")
+                    with gr.Row():
+                        correct_spanish = gr.Textbox(label="Spanish", scale=1)
+                        correct_english = gr.Textbox(label="English", scale=1)
 
                 # Event handlers
                 new_listen_btn.click(
@@ -488,37 +676,35 @@ def create_app():
 
             # ============ Vocabulary Tab ============
             with gr.Tab("📚 Vocabulary"):
-                gr.Markdown("### Spaced Repetition Vocabulary Review")
+                with gr.Row():
+                    get_vocab_btn = gr.Button("Get Word", variant="primary", scale=1)
+                    vocab_audio_btn = gr.Button("🔊 Listen", scale=1)
+                    reveal_btn = gr.Button("👁 Reveal", scale=1)
 
                 with gr.Row():
-                    get_vocab_btn = gr.Button("Get Word to Review", variant="primary")
-                    vocab_audio_btn = gr.Button("🔊 Listen")
-                    reveal_btn = gr.Button("👁 Reveal Translation")
+                    vocab_spanish = gr.Textbox(label="Spanish", interactive=False, scale=1)
+                    vocab_english = gr.Textbox(label="English", interactive=False, scale=1)
+                    vocab_example = gr.Textbox(label="Example", interactive=False, scale=1)
 
-                vocab_spanish = gr.Textbox(label="Spanish", interactive=False)
-                vocab_english = gr.Textbox(label="English", interactive=False)
-                vocab_example = gr.Textbox(label="Example", interactive=False)
                 vocab_id = gr.Number(visible=False)
                 vocab_audio = gr.Audio(label="Pronunciation", type="filepath", autoplay=True)
 
-                gr.Markdown("### How well did you remember?")
+                gr.Markdown("**Rate your recall:**")
                 with gr.Row():
-                    btn_again = gr.Button("Again (0)")
-                    btn_hard = gr.Button("Hard (2)")
-                    btn_good = gr.Button("Good (3)")
-                    btn_easy = gr.Button("Easy (5)")
+                    btn_again = gr.Button("Again (0)", scale=1)
+                    btn_hard = gr.Button("Hard (2)", scale=1)
+                    btn_good = gr.Button("Good (3)", scale=1)
+                    btn_easy = gr.Button("Easy (5)", scale=1)
 
-                gr.Markdown("---")
-                gr.Markdown("### Look up a word")
                 with gr.Row():
-                    lookup_word = gr.Textbox(label="Enter Spanish word or phrase")
-                    lookup_btn = gr.Button("Explain")
-                lookup_result = gr.Textbox(label="Explanation", lines=5)
+                    lookup_word = gr.Textbox(label="Look up word", scale=3)
+                    lookup_btn = gr.Button("Explain", scale=1)
+                lookup_result = gr.Textbox(label="Explanation", lines=3)
 
                 # Event handlers
                 get_vocab_btn.click(
                     get_vocab_for_review,
-                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example]
+                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example, vocab_audio]
                 )
                 vocab_audio_btn.click(
                     play_vocab_audio,
@@ -532,22 +718,22 @@ def create_app():
                 btn_again.click(
                     lambda vid: submit_vocab_review(vid, 0),
                     inputs=[vocab_id],
-                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example]
+                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example, vocab_audio]
                 )
                 btn_hard.click(
                     lambda vid: submit_vocab_review(vid, 2),
                     inputs=[vocab_id],
-                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example]
+                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example, vocab_audio]
                 )
                 btn_good.click(
                     lambda vid: submit_vocab_review(vid, 3),
                     inputs=[vocab_id],
-                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example]
+                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example, vocab_audio]
                 )
                 btn_easy.click(
                     lambda vid: submit_vocab_review(vid, 5),
                     inputs=[vocab_id],
-                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example]
+                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example, vocab_audio]
                 )
                 lookup_btn.click(
                     get_vocab_help,
@@ -557,14 +743,10 @@ def create_app():
 
             # ============ Grammar Tab ============
             with gr.Tab("📖 Grammar"):
-                gr.Markdown("### Grammar Explanations")
-
-                grammar_input = gr.Textbox(
-                    label="Enter a Spanish phrase to analyze",
-                    placeholder="e.g., 'Tengo que ir al supermercado'"
-                )
-                grammar_btn = gr.Button("Explain Grammar", variant="primary")
-                grammar_output = gr.Textbox(label="Explanation", lines=10)
+                with gr.Row():
+                    grammar_input = gr.Textbox(label="Spanish phrase to analyze", placeholder="e.g., Tengo que ir...", scale=3)
+                    grammar_btn = gr.Button("Explain", variant="primary", scale=1)
+                grammar_output = gr.Textbox(label="Explanation", lines=8)
 
                 grammar_btn.click(
                     explain_phrase_grammar,
@@ -574,27 +756,20 @@ def create_app():
 
             # ============ Statistics Tab ============
             with gr.Tab("📊 Progress"):
-                gr.Markdown("### Your Learning Statistics")
                 stats_display = gr.Markdown()
-                refresh_stats_btn = gr.Button("Refresh Statistics")
-
+                refresh_stats_btn = gr.Button("Refresh")
                 refresh_stats_btn.click(get_stats_display, outputs=[stats_display])
-
-                # Load stats on tab open
                 app.load(get_stats_display, outputs=[stats_display])
-
-        gr.Markdown("""
-        ---
-        *HablaConmigo* - Built with Whisper, Edge TTS, Ollama, and Gradio
-        """)
 
     return app
 
 
 if __name__ == "__main__":
+    import sys
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 7860
     app = create_app()
     app.launch(
         server_name="127.0.0.1",
-        server_port=7860,
+        server_port=port,
         share=False
     )
