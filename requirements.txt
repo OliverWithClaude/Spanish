@@ -1,0 +1,9 @@
+gradio>=4.0.0
+openai-whisper
+edge-tts
+ollama
+sounddevice
+soundfile
+numpy
+scipy
+pydub
