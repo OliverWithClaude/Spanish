@@ -71,6 +71,7 @@ def init_database():
             words_seen INTEGER DEFAULT 0,
             words_learning INTEGER DEFAULT 0,
             words_mastered INTEGER DEFAULT 0,
+            total_practice_seconds INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -199,6 +200,13 @@ def init_database():
     cursor.execute("SELECT COUNT(*) FROM user_progress")
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO user_progress DEFAULT VALUES")
+        conn.commit()
+
+    # Migration: Add total_practice_seconds column if it doesn't exist
+    try:
+        cursor.execute("SELECT total_practice_seconds FROM user_progress LIMIT 1")
+    except:
+        cursor.execute("ALTER TABLE user_progress ADD COLUMN total_practice_seconds INTEGER DEFAULT 0")
         conn.commit()
 
     conn.close()
@@ -779,6 +787,31 @@ def end_session(session_id: int, items_practiced: int, average_accuracy: float, 
     conn.close()
 
 
+def add_practice_time(seconds: int):
+    """Add practice time to total (used by smart session tracking)"""
+    if seconds <= 0:
+        return
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE user_progress
+        SET total_practice_seconds = COALESCE(total_practice_seconds, 0) + ?
+        WHERE id = 1
+    """, (seconds,))
+    conn.commit()
+    conn.close()
+
+
+def reset_practice_time():
+    """Reset practice time to 0"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE user_progress SET total_practice_seconds = 0 WHERE id = 1")
+    cursor.execute("DELETE FROM practice_sessions")
+    conn.commit()
+    conn.close()
+
+
 def record_pronunciation_attempt(phrase_id: int, expected_text: str, spoken_text: str,
                                   accuracy: float, feedback: str = None) -> int:
     """Record a pronunciation attempt and award XP"""
@@ -858,8 +891,8 @@ def get_statistics() -> dict:
     cursor.execute("SELECT COUNT(*) FROM practice_sessions")
     stats['total_sessions'] = cursor.fetchone()[0]
 
-    # Total practice time
-    cursor.execute("SELECT SUM(duration_seconds) FROM practice_sessions")
+    # Total practice time (from smart session tracking)
+    cursor.execute("SELECT total_practice_seconds FROM user_progress LIMIT 1")
     total_seconds = cursor.fetchone()[0] or 0
     stats['total_practice_minutes'] = round(total_seconds / 60, 1)
 

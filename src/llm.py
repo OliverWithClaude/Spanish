@@ -86,6 +86,21 @@ For each word or phrase:
 4. Mention any related useful words
 
 Be concise and practical.
+""",
+
+    "translate": """You are a translator. Translate the given Spanish text to English.
+Provide ONLY the English translation, nothing else. No explanations, no notes.
+Keep the same tone and style as the original.""",
+
+    "suggest_response": """You are helping a beginner Spanish learner practice conversation.
+Based on the conversation history, suggest ONE simple response the learner could say next.
+
+Rules:
+1. Keep it simple - A1/A2 level Spanish
+2. Make it natural and relevant to the conversation
+3. Use common vocabulary and short sentences
+4. Provide ONLY the Spanish suggestion, nothing else - no explanations, no translations
+5. The suggestion should be 1-2 short sentences maximum
 """
 }
 
@@ -135,6 +150,24 @@ def chat(
         return response['message']['content']
     except Exception as e:
         return f"Error: {e}. Make sure Ollama is running and the model '{model}' is installed."
+
+
+def translate_to_english(spanish_text: str, model: str = DEFAULT_MODEL) -> str:
+    """Translate Spanish text to English"""
+    return chat(spanish_text, mode="translate", model=model)
+
+
+def suggest_response(history: list, model: str = DEFAULT_MODEL) -> str:
+    """Suggest a response for the learner based on conversation history"""
+    # Build a summary of recent conversation for context
+    recent = history[-6:] if len(history) > 6 else history  # Last 3 exchanges
+    context = "\n".join([
+        f"{'User' if m['role'] == 'user' else 'María/Carlos'}: {m['content']}"
+        for m in recent
+    ])
+
+    prompt = f"Conversation so far:\n{context}\n\nSuggest what the learner could say next:"
+    return chat(prompt, mode="suggest_response", model=model)
 
 
 def chat_stream(

@@ -65,18 +65,35 @@ def transcribe_audio(audio_path: str, language: str = "es") -> dict:
         language: Language code (default: Spanish)
 
     Returns:
-        dict with 'text' and 'segments' (with timestamps)
+        dict with 'text', 'segments', 'language', and 'success' flag
     """
     model = get_whisper_model()
     result = model.transcribe(
         audio_path,
         language=language,
-        task="transcribe"
+        task="transcribe",
+        fp16=False,  # Better compatibility
+        verbose=False,
     )
+
+    text = result["text"].strip()
+    success = True
+
+    # Check if transcription looks like non-Spanish (basic heuristic)
+    # If it contains Cyrillic or other non-Latin characters, it probably failed
+    import re
+    if re.search(r'[а-яА-Яёё\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]', text):
+        success = False
+
+    # If transcription is empty or very short, it might have failed
+    if len(text) < 2:
+        success = False
+
     return {
-        "text": result["text"].strip(),
+        "text": text,
         "segments": result.get("segments", []),
-        "language": result.get("language", language)
+        "language": result.get("language", language),
+        "success": success
     }
 
 
@@ -178,6 +195,31 @@ def compare_pronunciation(expected_text: str, spoken_text: str) -> dict:
     Returns:
         dict with comparison results
     """
+    # Spanish number words to digits mapping
+    NUMBER_MAP = {
+        'cero': '0', 'uno': '1', 'una': '1', 'dos': '2', 'tres': '3',
+        'cuatro': '4', 'cinco': '5', 'seis': '6', 'siete': '7',
+        'ocho': '8', 'nueve': '9', 'diez': '10', 'once': '11',
+        'doce': '12', 'trece': '13', 'catorce': '14', 'quince': '15',
+        'dieciséis': '16', 'dieciseis': '16', 'diecisiete': '17',
+        'dieciocho': '18', 'diecinueve': '19', 'veinte': '20',
+        'veintiuno': '21', 'veintidós': '22', 'veintidos': '22',
+        'treinta': '30', 'cuarenta': '40', 'cincuenta': '50',
+        'sesenta': '60', 'setenta': '70', 'ochenta': '80',
+        'noventa': '90', 'cien': '100', 'ciento': '100',
+    }
+    # Reverse mapping (digits to words)
+    DIGIT_TO_WORD = {v: k for k, v in NUMBER_MAP.items()}
+
+    def normalize_word(word):
+        """Normalize a word, handling number equivalents"""
+        word = word.lower().strip()
+        # If it's a number word, return its digit equivalent for comparison
+        if word in NUMBER_MAP:
+            return NUMBER_MAP[word]
+        # If it's a digit, keep it as is
+        return word
+
     # Normalize texts for comparison
     expected_normalized = expected_text.lower().strip()
     spoken_normalized = spoken_text.lower().strip()
@@ -198,7 +240,10 @@ def compare_pronunciation(expected_text: str, spoken_text: str) -> dict:
     for i, expected_word in enumerate(expected_words):
         if i < len(spoken_words):
             spoken_word = spoken_words[i]
-            is_correct = expected_word == spoken_word
+            # Compare normalized versions (handles numbers like "seis" vs "6")
+            expected_norm = normalize_word(expected_word)
+            spoken_norm = normalize_word(spoken_word)
+            is_correct = expected_norm == spoken_norm
             if is_correct:
                 correct_words += 1
             word_results.append({

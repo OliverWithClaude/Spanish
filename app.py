@@ -21,6 +21,8 @@ from src.llm import (
     explain_grammar,
     get_vocabulary_help,
     get_available_models,
+    translate_to_english,
+    suggest_response,
     DEFAULT_MODEL
 )
 from src.database import (
@@ -40,13 +42,17 @@ from src.database import (
     get_recommended_activities,
     get_daily_goal_progress,
     get_xp_for_level,
-    introduce_new_words
+    introduce_new_words,
+    get_connection,
+    add_practice_time,
+    reset_practice_time
 )
 from src.content import populate_database
 
 # Initialize database and content
 init_database()
 populate_database()
+
 
 # Preload Whisper model at startup to avoid timeout during first request
 print("Preloading Whisper model (this may take a minute on first run)...")
@@ -59,12 +65,51 @@ conversation_history = []
 current_session_id = None
 practice_stats = {"attempts": 0, "total_accuracy": 0}
 
+# Smart session tracking - based on interaction gaps
+from datetime import datetime, timedelta
+
+SESSION_TIMEOUT_MINUTES = 3  # Gap threshold for session timeout
+last_interaction_time = None
+session_items = 0
+session_total_accuracy = 0.0
+
+
+def record_practice_activity(accuracy: float):
+    """Record a practice activity with smart time tracking.
+
+    Only counts time if the gap since last interaction is < 3 minutes.
+    """
+    global last_interaction_time, session_items, session_total_accuracy
+
+    now = datetime.now()
+    time_to_add = 0
+
+    if last_interaction_time is not None:
+        gap = (now - last_interaction_time).total_seconds()
+        # Only count time if gap is less than 3 minutes (180 seconds)
+        if gap < SESSION_TIMEOUT_MINUTES * 60:
+            time_to_add = int(gap)
+
+    # Update tracking
+    last_interaction_time = now
+    session_items += 1
+    session_total_accuracy += accuracy
+
+    # Save to database - add practice time using database function
+    add_practice_time(time_to_add)
+
+    # Also record as a session for stats
+    avg_accuracy = session_total_accuracy / session_items if session_items > 0 else accuracy
+    session_id = start_session("practice")
+    end_session(session_id, 1, accuracy)
+
 
 # ============ Speaking Practice Tab ============
 
 def get_random_phrase(category: str = "all", voice: str = "female"):
     """Get a random phrase for practice and automatically generate audio"""
     global current_phrase
+
     cat = None if category == "all" else category
     phrases = get_phrases(category=cat, limit=1)
     if phrases:
@@ -74,8 +119,9 @@ def get_random_phrase(category: str = "all", voice: str = "female"):
         notes = current_phrase.get('notes', '')
         # Auto-generate audio
         audio_path = text_to_speech(spanish, voice)
-        return spanish, english, notes, audio_path
-    return "No phrases found", "", "", None
+        # Return None for user_recording to clear it
+        return spanish, english, notes, audio_path, None
+    return "No phrases found", "", "", None, None
 
 
 def play_phrase_audio(spanish_text: str, voice: str = "female"):
@@ -101,6 +147,10 @@ def evaluate_pronunciation(audio_file, expected_text: str):
         result = transcribe_audio(audio_file)
         spoken_text = result['text']
 
+        # Check if transcription failed (non-Spanish detected)
+        if not result.get('success', True):
+            return "Audio unclear - please try again. Speak clearly into the microphone.", f"Whisper heard: {spoken_text}", 0
+
         # Compare pronunciation
         comparison = compare_pronunciation(expected_text, spoken_text)
         accuracy = comparison['accuracy']
@@ -121,6 +171,9 @@ def evaluate_pronunciation(audio_file, expected_text: str):
                 accuracy,
                 feedback
             )
+
+        # Record practice activity with smart time tracking
+        record_practice_activity(accuracy)
 
         # Format word-by-word results
         word_results = ""
@@ -193,7 +246,59 @@ def clear_conversation():
     """Clear conversation history"""
     global conversation_history
     conversation_history = []
-    return [], ""
+    return [], "", ""
+
+
+def translate_last_response(history: list):
+    """Translate the last AI response to English and show below it"""
+    if not history or len(history) < 1:
+        return history
+
+    # Find the last assistant message
+    for i in range(len(history) - 1, -1, -1):
+        msg = history[i]
+        if isinstance(msg, dict) and msg.get("role") == "assistant":
+            content = msg.get("content", "")
+
+            # Handle Gradio 6.0 format where content might be a list
+            if isinstance(content, list):
+                # Extract text from list of content blocks
+                text_parts = []
+                for block in content:
+                    if isinstance(block, dict) and "text" in block:
+                        text_parts.append(block["text"])
+                    elif isinstance(block, str):
+                        text_parts.append(block)
+                content = " ".join(text_parts)
+            elif hasattr(content, 'text'):
+                content = content.text
+
+            # Skip if already has a translation
+            if "_Translation:_" in str(content):
+                return history
+
+            # Translate
+            translation = translate_to_english(content)
+
+            # Add translation in smaller italic text below
+            history[i]["content"] = f"{content}\n\n_Translation: {translation}_"
+            break
+
+    return history
+
+
+def suggest_next_response(history: list):
+    """Suggest what the user could say next"""
+    global conversation_history
+
+    if not conversation_history:
+        return history, "Try saying: ¡Hola! ¿Cómo estás?"
+
+    # Get suggestion from LLM
+    suggestion = suggest_response(conversation_history)
+
+    # Return suggestion as helper text (not added to history yet)
+    return history, f"💡 Try saying: _{suggestion}_"
 
 
 def transcribe_voice_input(audio_file):
@@ -215,6 +320,7 @@ current_vocab_english = ""
 def get_vocab_for_review():
     """Get vocabulary items due for review - hide English initially, autoplay audio"""
     global current_vocab_english
+
     vocab = get_vocabulary_for_review(limit=1)
     if vocab:
         item = vocab[0]
@@ -248,6 +354,11 @@ def submit_vocab_review(vocab_id: int, quality: int):
     """Submit vocabulary review result and get next word with autoplay"""
     if vocab_id:
         update_vocabulary_progress(vocab_id, quality)
+
+        # Record practice activity - quality 3+ = "correct" (Good/Easy)
+        accuracy = 100.0 if quality >= 3 else 0.0
+        record_practice_activity(accuracy)
+
         return get_vocab_for_review()
     return "No vocabulary selected", "", None, "", None
 
@@ -272,19 +383,62 @@ def generate_listening_exercise(category: str = "all"):
     return None, "", "", ""
 
 
+def normalize_for_comparison(text: str) -> str:
+    """Normalize text for lenient comparison (beginner-friendly).
+    Removes accents, special punctuation, and normalizes whitespace.
+    """
+    import unicodedata
+
+    # Remove inverted punctuation (¿ ¡) and regular punctuation
+    text = text.replace('¿', '').replace('¡', '')
+    text = text.replace('?', '').replace('!', '').replace(',', '').replace('.', '')
+
+    # Normalize unicode and remove accents
+    # NFD decomposes accented chars (é -> e + combining accent)
+    # Then we filter out the combining marks
+    normalized = unicodedata.normalize('NFD', text)
+    text = ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
+
+    # Lowercase and normalize whitespace
+    text = ' '.join(text.lower().split())
+
+    return text
+
+
 def check_listening_answer(user_answer: str, correct_answer: str):
-    """Check user's listening comprehension answer"""
+    """Check user's listening comprehension answer (lenient for beginners)"""
     if not user_answer or not correct_answer:
         return "Please type what you heard."
 
-    comparison = compare_pronunciation(correct_answer, user_answer)
+    # Normalize both for lenient comparison
+    user_normalized = normalize_for_comparison(user_answer)
+    correct_normalized = normalize_for_comparison(correct_answer)
 
-    if comparison['accuracy'] >= 90:
-        return f"✓ Excellent! {comparison['accuracy']}% correct!\nYou wrote: {user_answer}"
-    elif comparison['accuracy'] >= 70:
-        return f"◐ Good! {comparison['accuracy']}% correct.\nYou wrote: {user_answer}\nCorrect: {correct_answer}"
+    # Check for exact match after normalization
+    if user_normalized == correct_normalized:
+        accuracy = 100.0
     else:
-        return f"✗ Keep practicing! {comparison['accuracy']}% correct.\nYou wrote: {user_answer}\nCorrect: {correct_answer}"
+        # Word-by-word comparison on normalized text
+        user_words = user_normalized.split()
+        correct_words = correct_normalized.split()
+
+        correct_count = 0
+        for i, word in enumerate(correct_words):
+            if i < len(user_words) and user_words[i] == word:
+                correct_count += 1
+
+        total = max(len(correct_words), len(user_words))
+        accuracy = (correct_count / total * 100) if total > 0 else 0
+
+    # Record practice activity with smart time tracking
+    record_practice_activity(accuracy)
+
+    if accuracy >= 90:
+        return f"✓ Excellent! {accuracy:.0f}% correct!\nYou wrote: {user_answer}"
+    elif accuracy >= 70:
+        return f"◐ Good! {accuracy:.0f}% correct.\nYou wrote: {user_answer}\nCorrect: {correct_answer}"
+    else:
+        return f"✗ Keep practicing! {accuracy:.0f}% correct.\nYou wrote: {user_answer}\nCorrect: {correct_answer}"
 
 
 # ============ Grammar Tab ============
@@ -566,29 +720,28 @@ def create_app():
                     english_phrase = gr.Textbox(label="English", interactive=False, scale=2)
                     phrase_notes = gr.Textbox(label="Notes", interactive=False, scale=1)
 
-                phrase_audio = gr.Audio(label="Native Pronunciation", type="filepath", autoplay=True, visible=True)
-
                 with gr.Row():
-                    user_recording = gr.Audio(label="Your Recording", sources=["microphone"], type="filepath", scale=2)
-                    evaluate_btn = gr.Button("Evaluate My Pronunciation", variant="primary", scale=1)
+                    phrase_audio = gr.Audio(label="Native", type="filepath", autoplay=True, scale=1)
+                    user_recording = gr.Audio(label="Your Recording (auto-evaluates when done)", sources=["microphone"], type="filepath", scale=1)
 
                 with gr.Row():
                     accuracy_score = gr.Number(label="Accuracy", value=0, scale=1)
-                    word_comparison = gr.Textbox(label="Word Analysis", lines=3, scale=2)
-                    feedback_text = gr.Textbox(label="Feedback", lines=3, scale=2)
+                    word_comparison = gr.Textbox(label="Word Analysis", lines=2, scale=2)
+                    feedback_text = gr.Textbox(label="Feedback", lines=2, scale=2)
 
                 # Event handlers
                 new_phrase_btn.click(
                     get_random_phrase,
                     inputs=[category_select, voice_select],
-                    outputs=[spanish_phrase, english_phrase, phrase_notes, phrase_audio]
+                    outputs=[spanish_phrase, english_phrase, phrase_notes, phrase_audio, user_recording]
                 )
                 play_btn.click(
                     play_phrase_audio,
                     inputs=[spanish_phrase, voice_select],
                     outputs=[phrase_audio]
                 )
-                evaluate_btn.click(
+                # Auto-evaluate when recording changes (user stops recording)
+                user_recording.change(
                     evaluate_pronunciation,
                     inputs=[user_recording, spanish_phrase],
                     outputs=[feedback_text, word_comparison, accuracy_score]
@@ -605,6 +758,15 @@ def create_app():
 
                 chatbot = gr.Chatbot(label="Conversation", height=300)
 
+                # Help me buttons
+                with gr.Row():
+                    translate_btn = gr.Button("🔤 Translate", scale=1)
+                    suggest_btn = gr.Button("💡 Suggest", scale=1)
+                    speak_response_btn = gr.Button("🔊 Hear Again", scale=1)
+
+                # Suggestion display area
+                suggestion_text = gr.Markdown(value="", visible=True)
+
                 with gr.Row():
                     user_input = gr.Textbox(label="Your message", placeholder="Type in Spanish...", lines=1, scale=4)
                     send_btn = gr.Button("Send", variant="primary", scale=1)
@@ -612,7 +774,6 @@ def create_app():
                 with gr.Row():
                     voice_input = gr.Audio(label="Voice input", sources=["microphone"], type="filepath", scale=2)
                     transcribe_btn = gr.Button("Transcribe", scale=1)
-                    speak_response_btn = gr.Button("🔊 Hear Again", scale=1)
 
                 response_audio = gr.Audio(label="AI Response", type="filepath", autoplay=True)
 
@@ -627,7 +788,7 @@ def create_app():
                     inputs=[user_input, chatbot, conv_voice_select],
                     outputs=[chatbot, user_input, response_audio]
                 )
-                clear_btn.click(clear_conversation, outputs=[chatbot, user_input])
+                clear_btn.click(clear_conversation, outputs=[chatbot, user_input, suggestion_text])
                 transcribe_btn.click(
                     transcribe_voice_input,
                     inputs=[voice_input],
@@ -637,6 +798,16 @@ def create_app():
                     speak_ai_response,
                     inputs=[chatbot],
                     outputs=[response_audio]
+                )
+                translate_btn.click(
+                    translate_last_response,
+                    inputs=[chatbot],
+                    outputs=[chatbot]
+                )
+                suggest_btn.click(
+                    suggest_next_response,
+                    inputs=[chatbot],
+                    outputs=[chatbot, suggestion_text]
                 )
 
             # ============ Listening Tab ============
@@ -760,6 +931,122 @@ def create_app():
                 refresh_stats_btn = gr.Button("Refresh")
                 refresh_stats_btn.click(get_stats_display, outputs=[stats_display])
                 app.load(get_stats_display, outputs=[stats_display])
+
+            # ============ Help Tab ============
+            with gr.Tab("❓ Help"):
+                gr.Markdown("""
+## How Progress Works
+
+### Two Progress Systems
+
+This app tracks your progress in **two complementary ways**:
+
+| System | What it measures | How you advance |
+|--------|------------------|-----------------|
+| **XP & Levels** | Overall activity & engagement | Any practice earns XP |
+| **Vocabulary Mastery** | True word retention | Correct recalls over time |
+
+---
+
+## XP & Levels Explained
+
+**XP (Experience Points)** rewards you for practicing:
+
+| Activity | XP Earned |
+|----------|-----------|
+| Vocabulary review (correct) | 5-15 XP |
+| Pronunciation 60%+ accuracy | 5 XP |
+| Pronunciation 80%+ accuracy | 10 XP |
+| Pronunciation 95%+ accuracy | 20 XP |
+
+**Levels:** Every **500 XP** = 1 level up
+
+> **Example:** At 505 XP, you're Level 2 (just crossed the 500 XP threshold)
+
+⚠️ **Important:** Levels measure *activity*, not *mastery*. You can reach Level 10 without truly learning words if you just click through!
+
+---
+
+## Vocabulary Mastery Explained
+
+Words progress through **stages** based on spaced repetition:
+
+```
+🆕 NEW → 📖 LEARNING → ✅ LEARNED
+              ↑
+          ⚠️ STRUGGLING (if you fail reviews)
+```
+
+### How a word becomes "Learned":
+
+| Step | What happens | Review interval |
+|------|--------------|-----------------|
+| 1 | First correct recall | Wait 1 day |
+| 2 | Second correct recall | Wait 3 days |
+| 3 | Third correct recall | Wait 7 days |
+| 4 | Fourth correct recall | Wait 14 days |
+| ✅ | **LEARNED!** | Reviews continue at longer intervals |
+
+> **Why 0 Learned?** A word needs **4+ correct recalls over 7+ days** to be "Learned". If you started recently, no word has had time to complete this journey yet!
+
+### If you fail a review:
+- The word resets to step 1
+- Interval goes back to 1 day
+- After multiple failures → marked as "Struggling"
+
+---
+
+## CEFR Sections & Unlock Requirements
+
+The learning path has **sections** that unlock based on XP:
+
+| Section | CEFR | XP Required | Word Target |
+|---------|------|-------------|-------------|
+| A1.1 - Survival Basics | A1 | 0 (unlocked) | 250 words |
+| A1.2 - Daily Life | A1 | 1,000 XP | 250 words |
+| A2.1 - Workplace Basics | A2 | 3,000 XP | 250 words |
+
+---
+
+## Your Progress Timeline
+
+Based on typical practice patterns:
+
+| Daily Practice | Time to "Learned" words | Time to A1.2 unlock |
+|----------------|-------------------------|---------------------|
+| 5 min/day | 2-3 weeks for first words | ~4 weeks |
+| 15 min/day | 1-2 weeks for first words | ~2 weeks |
+| 30 min/day | 1 week for first words | ~1 week |
+
+### Realistic expectations:
+
+- **Week 1:** Many words in "Learning", 0 "Learned" (normal!)
+- **Week 2-3:** First words reach "Learned" status
+- **Month 1:** 50-100 words "Learned" with consistent practice
+- **Month 3:** A1.1 mastered, working on A1.2
+
+---
+
+## Tips for Faster Progress
+
+1. **Review daily** - Streaks matter! Missing a day resets word intervals
+2. **Be honest with ratings** - "Again" is better than guessing "Easy"
+3. **Focus on due words first** - The AI Coach recommends what to do
+4. **Use all features** - Speaking practice earns more XP than just vocab
+5. **Quality over quantity** - 10 words truly learned > 50 words seen once
+
+---
+
+## Understanding Your Current Status
+
+If you see:
+- **67 Learning, 0 Learned** → You've seen 67 words, but none have completed the 4-recall journey yet. Keep reviewing daily!
+- **Level 2 (505 XP)** → You've been active! But XP ≠ mastery
+- **Words due: X** → These need review today to stay on track
+
+The gap between "Learning" and "Learned" will close as you **consistently review over time**.
+""")
+
 
     return app
 
