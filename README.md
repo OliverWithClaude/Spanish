@@ -43,6 +43,14 @@ AI-powered Spanish learning application focused on **speaking and listening skil
 - Hidden translations for proper recall practice
 - Rate your recall: Again / Hard / Good / Easy
 - XP rewards for reviews
+- **"Help me remember"** feature:
+  - Shows an image from Unsplash (for concrete words like food, objects)
+  - Generates a memorable example sentence using the word
+  - Provides English translation of the sentence
+  - Audio playback of the example sentence
+- **Practice on Demand** buttons on Home tab:
+  - Practice 20 Struggling Words - bypass spaced repetition to drill difficult words
+  - Practice 20 Learning Words - review words currently being learned
 
 ### Grammar Help
 - AI-powered grammar explanations
@@ -72,6 +80,7 @@ AI-powered Spanish learning application focused on **speaking and listening skil
 - **LLM**: Ollama (llama3.2 or other models)
 - **UI**: Gradio
 - **Database**: SQLite
+- **Images**: Unsplash API (optional, for vocabulary memory aids)
 
 ## Prerequisites
 
@@ -170,6 +179,8 @@ Spanish/
 ├── app.py                    # Main Gradio application
 ├── requirements.txt          # Python dependencies
 ├── README.md                 # This file
+├── CLAUDE.md                 # Development guidance for Claude Code
+├── .env.example              # Environment variables template
 ├── PROPOSAL.md               # Original design proposal
 ├── LEARNING_PATH_PROPOSAL.md # Learning path design
 ├── data/                     # SQLite database (created on first run)
@@ -179,7 +190,8 @@ Spanish/
     ├── audio.py              # Whisper STT & Edge TTS (auto-detects FFmpeg)
     ├── llm.py                # Ollama integration
     ├── database.py           # SQLite with learning path & XP system
-    └── content.py            # 429 vocabulary words, 204 phrases
+    ├── content.py            # 429 vocabulary words, 204 phrases
+    └── images.py             # Unsplash API for vocabulary images
 ```
 
 ## Configuration
@@ -196,6 +208,20 @@ DEFAULT_MODEL = "llama3.2:latest"  # or any Ollama model
 
 - **Female**: es-ES-ElviraNeural (María)
 - **Male**: es-ES-AlvaroNeural (Carlos)
+
+### Unsplash API (Optional)
+
+The "Help me remember" feature uses Unsplash for vocabulary images. To enable:
+
+1. Create a free account at https://unsplash.com/join
+2. Create an app at https://unsplash.com/oauth/applications
+3. Copy your Access Key
+4. Create a `.env` file in the project root:
+   ```
+   UNSPLASH_API_KEY=your_access_key_here
+   ```
+
+The feature works without the API key (sentences + audio still work, just no images).
 
 ## Troubleshooting
 

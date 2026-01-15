@@ -478,6 +478,46 @@ def get_vocabulary_for_review(limit: int = 10, unit_id: int = None) -> list:
     return results
 
 
+def get_vocabulary_by_id(vocab_id: int) -> dict:
+    """Get a single vocabulary item by ID"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT v.*, vp.ease_factor, vp.interval_days, vp.repetitions,
+               vp.times_correct, vp.times_incorrect, vp.status,
+               u.name as unit_name
+        FROM vocabulary v
+        JOIN vocabulary_progress vp ON v.id = vp.vocabulary_id
+        LEFT JOIN units u ON v.unit_id = u.id
+        WHERE v.id = ?
+    """, (vocab_id,))
+
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_vocabulary_by_status(status: str, limit: int = 20) -> list:
+    """Get vocabulary items by their learning status (regardless of due date)"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT v.*, vp.ease_factor, vp.interval_days, vp.repetitions,
+               vp.times_correct, vp.times_incorrect, vp.status
+        FROM vocabulary v
+        JOIN vocabulary_progress vp ON v.id = vp.vocabulary_id
+        WHERE vp.status = ?
+        ORDER BY vp.times_incorrect DESC, vp.last_review ASC
+        LIMIT ?
+    """, (status, limit))
+
+    results = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return results
+
+
 def get_vocabulary_stats() -> dict:
     """Get vocabulary learning statistics"""
     conn = get_connection()

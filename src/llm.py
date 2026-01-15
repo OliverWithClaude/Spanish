@@ -101,6 +101,23 @@ Rules:
 3. Use common vocabulary and short sentences
 4. Provide ONLY the Spanish suggestion, nothing else - no explanations, no translations
 5. The suggestion should be 1-2 short sentences maximum
+""",
+
+    "memory_sentence": """You are helping a Spanish learner memorize vocabulary through vivid, memorable sentences.
+Given a Spanish word and its English meaning, create ONE simple sentence that:
+
+1. Uses the word in a clear, visual context that's easy to picture
+2. Is at A1/A2 level (simple vocabulary and grammar)
+3. Uses Castilian Spanish (Spain)
+4. Is short (5-10 words maximum)
+5. Creates a memorable mental image
+
+Format: Return ONLY the Spanish sentence, nothing else. No translation, no explanation.
+
+Examples:
+- Word: "silla" (chair) -> "La silla roja está en la cocina."
+- Word: "perro" (dog) -> "El perro grande corre en el parque."
+- Word: "café" (coffee) -> "Mi café caliente está en la mesa."
 """
 }
 
@@ -281,6 +298,22 @@ English: [translation]
 Tip: [pronunciation or usage tip]"""
 
     return chat(prompt, mode="vocabulary_helper")
+
+
+def generate_memory_sentence(spanish: str, english: str, model: str = DEFAULT_MODEL) -> str:
+    """
+    Generate a memorable sentence using a vocabulary word.
+
+    Args:
+        spanish: The Spanish word
+        english: The English translation
+        model: Ollama model to use
+
+    Returns:
+        A vivid Spanish sentence using the word
+    """
+    prompt = f'Create a memorable sentence for: "{spanish}" (meaning: {english})'
+    return chat(prompt, mode="memory_sentence", model=model)
 
 
 if __name__ == "__main__":

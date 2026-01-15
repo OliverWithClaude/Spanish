@@ -7,6 +7,10 @@ import gradio as gr
 import tempfile
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from src.audio import (
     text_to_speech,
@@ -23,13 +27,17 @@ from src.llm import (
     get_available_models,
     translate_to_english,
     suggest_response,
+    generate_memory_sentence,
     DEFAULT_MODEL
 )
+from src.images import get_memory_image, is_imageable
 from src.database import (
     init_database,
     get_phrases,
     get_all_vocabulary,
     get_vocabulary_for_review,
+    get_vocabulary_by_id,
+    get_vocabulary_by_status,
     update_vocabulary_progress,
     record_pronunciation_attempt,
     get_statistics,
@@ -316,11 +324,23 @@ def transcribe_voice_input(audio_file):
 
 # Store the current vocab English translation for reveal
 current_vocab_english = ""
+# Queue for on-demand practice (struggling/learning words)
+vocab_practice_queue = []
 
 def get_vocab_for_review():
     """Get vocabulary items due for review - hide English initially, autoplay audio"""
-    global current_vocab_english
+    global current_vocab_english, vocab_practice_queue
 
+    # First check if we have queued words from "Practice Struggling/Learning" buttons
+    if vocab_practice_queue:
+        item = vocab_practice_queue.pop(0)
+        current_vocab_english = item['english']
+        audio_path = text_to_speech(item['spanish'], "female")
+        remaining = len(vocab_practice_queue)
+        status_msg = f"({remaining} more in queue)" if remaining > 0 else ""
+        return item['spanish'], f"Click 'Reveal' to see translation {status_msg}", item['id'], "", audio_path
+
+    # Otherwise use normal spaced repetition
     vocab = get_vocabulary_for_review(limit=1)
     if vocab:
         item = vocab[0]
@@ -331,6 +351,26 @@ def get_vocab_for_review():
         return item['spanish'], "Click 'Reveal' to see translation", item['id'], "", audio_path
     current_vocab_english = ""
     return "No vocabulary due for review!", "", None, "", None
+
+
+def load_struggling_words():
+    """Load 20 struggling words into the practice queue"""
+    global vocab_practice_queue
+    words = get_vocabulary_by_status('struggling', limit=20)
+    if words:
+        vocab_practice_queue = words
+        return f"Loaded {len(words)} struggling words. Go to 📚 Vocabulary tab to practice!"
+    return "No struggling words found."
+
+
+def load_learning_words():
+    """Load 20 learning words into the practice queue"""
+    global vocab_practice_queue
+    words = get_vocabulary_by_status('learning', limit=20)
+    if words:
+        vocab_practice_queue = words
+        return f"Loaded {len(words)} learning words. Go to 📚 Vocabulary tab to practice!"
+    return "No learning words found."
 
 
 def reveal_vocab_translation():
@@ -368,6 +408,49 @@ def get_vocab_help(word: str):
     if word:
         return get_vocabulary_help(word)
     return ""
+
+
+def help_me_remember(vocab_id: int):
+    """
+    Generate memory aids for the current vocabulary word:
+    - An image (for concrete words)
+    - A memorable sentence with audio
+    """
+    if not vocab_id:
+        return None, "No word selected", "", None, ""
+
+    # Get the vocabulary item directly by ID
+    vocab_item = get_vocabulary_by_id(int(vocab_id))
+
+    if not vocab_item:
+        return None, "Word not found", "", None, ""
+
+    spanish = vocab_item['spanish']
+    english = vocab_item['english']
+    # Use unit_name as category (category field is often None)
+    category = vocab_item.get('unit_name') or vocab_item.get('category') or ''
+
+    # Get image (only for imageable categories)
+    image_url, credit, imageable = get_memory_image(spanish, english, category)
+
+    # Generate a memorable sentence
+    sentence = generate_memory_sentence(spanish, english)
+
+    # Translate the sentence to English
+    sentence_english = translate_to_english(sentence)
+
+    # Generate audio for the sentence
+    sentence_audio = text_to_speech(sentence, "female")
+
+    # Build info message
+    if imageable and not image_url:
+        info = f"{credit}" if credit else "Image not found"
+    elif not imageable:
+        info = "This word is abstract - no image available"
+    else:
+        info = credit if credit else ""
+
+    return image_url, sentence, sentence_english, sentence_audio, info
 
 
 # ============ Listening Tab ============
@@ -689,6 +772,13 @@ def create_app():
 
                 new_words_display = gr.Markdown()
 
+                gr.Markdown("**Practice on Demand:**")
+                with gr.Row():
+                    practice_struggling_btn = gr.Button("😤 Practice 20 Struggling Words", variant="secondary", scale=1)
+                    practice_learning_btn = gr.Button("📖 Practice 20 Learning Words", variant="secondary", scale=1)
+
+                practice_queue_status = gr.Markdown()
+
                 with gr.Accordion("📚 Learning Path", open=False):
                     learning_path_display = gr.Markdown()
                     refresh_path_btn = gr.Button("Refresh Path")
@@ -698,6 +788,8 @@ def create_app():
                 refresh_home_btn.click(get_xp_display, outputs=[xp_display])
                 refresh_path_btn.click(get_learning_path_display, outputs=[learning_path_display])
                 learn_new_btn.click(get_new_words_display, outputs=[new_words_display])
+                practice_struggling_btn.click(load_struggling_words, outputs=[practice_queue_status])
+                practice_learning_btn.click(load_learning_words, outputs=[practice_queue_status])
 
                 # Load on startup
                 app.load(get_ai_coach_display, outputs=[ai_coach_display])
@@ -860,6 +952,17 @@ def create_app():
                 vocab_id = gr.Number(visible=False)
                 vocab_audio = gr.Audio(label="Pronunciation", type="filepath", autoplay=True)
 
+                # Help me remember feature
+                help_remember_btn = gr.Button("💡 Help me remember", variant="secondary")
+                with gr.Accordion("Memory Aid", open=False) as memory_accordion:
+                    with gr.Row():
+                        memory_image = gr.Image(label="Visual", scale=1)
+                        with gr.Column(scale=2):
+                            memory_sentence = gr.Textbox(label="Example Sentence", interactive=False)
+                            memory_sentence_english = gr.Textbox(label="Example English", interactive=False)
+                            memory_audio = gr.Audio(label="Listen", type="filepath", autoplay=False)
+                            memory_info = gr.Markdown()
+
                 gr.Markdown("**Rate your recall:**")
                 with gr.Row():
                     btn_again = gr.Button("Again (0)", scale=1)
@@ -885,6 +988,11 @@ def create_app():
                 reveal_btn.click(
                     reveal_vocab_translation,
                     outputs=[vocab_english, vocab_example]
+                )
+                help_remember_btn.click(
+                    help_me_remember,
+                    inputs=[vocab_id],
+                    outputs=[memory_image, memory_sentence, memory_sentence_english, memory_audio, memory_info]
                 )
                 btn_again.click(
                     lambda vid: submit_vocab_review(vid, 0),
