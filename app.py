@@ -817,8 +817,7 @@ def create_app():
     """Create the Gradio application"""
 
     with gr.Blocks(
-        title="HablaConmigo - Learn Spanish",
-        theme=gr.themes.Soft(primary_hue="orange")
+        title="HablaConmigo - Learn Spanish"
     ) as app:
 
         gr.Markdown("# 🇪🇸 HablaConmigo - Learn Spanish")
@@ -1238,5 +1237,6 @@ if __name__ == "__main__":
     app.launch(
         server_name="127.0.0.1",
         server_port=port,
-        share=False
+        share=False,
+        theme=gr.themes.Soft(primary_hue="orange")
     )
