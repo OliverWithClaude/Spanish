@@ -452,24 +452,40 @@ def add_vocabulary(spanish: str, english: str, category: str = None,
 
 
 def get_vocabulary_for_review(limit: int = 10, unit_id: int = None) -> list:
-    """Get vocabulary items due for review"""
+    """
+    Get vocabulary items due for review.
+
+    Includes:
+    - Words where next_review has passed (standard SM-2)
+    - Learning/struggling words not yet practiced TODAY (date-based reset)
+    """
     conn = get_connection()
     cursor = conn.cursor()
 
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
     query = """
         SELECT v.*, vp.ease_factor, vp.interval_days, vp.repetitions,
-               vp.times_correct, vp.times_incorrect, vp.status
+               vp.times_correct, vp.times_incorrect, vp.status,
+               u.name as unit_name
         FROM vocabulary v
         JOIN vocabulary_progress vp ON v.id = vp.vocabulary_id
-        WHERE vp.next_review <= ?
+        LEFT JOIN units u ON v.unit_id = u.id
+        WHERE (
+            vp.next_review <= ?
+            OR (
+                vp.status IN ('learning', 'struggling')
+                AND (vp.last_review IS NULL OR vp.last_review < ?)
+            )
+        )
     """
-    params = [datetime.now().isoformat()]
+    params = [datetime.now().isoformat(), today_start]
 
     if unit_id:
         query += " AND v.unit_id = ?"
         params.append(unit_id)
 
-    query += " ORDER BY vp.next_review LIMIT ?"
+    query += " ORDER BY vp.status = 'struggling' DESC, vp.next_review LIMIT ?"
     params.append(limit)
 
     cursor.execute(query, params)
@@ -498,24 +514,138 @@ def get_vocabulary_by_id(vocab_id: int) -> dict:
     return dict(row) if row else None
 
 
-def get_vocabulary_by_status(status: str, limit: int = 20) -> list:
-    """Get vocabulary items by their learning status (regardless of due date)"""
+def get_vocabulary_by_status(status: str, limit: int = 20, offset: int = 0, exclude_practiced_today: bool = False) -> list:
+    """
+    Get vocabulary items by their learning status (regardless of due date).
+
+    Args:
+        status: The status to filter by ('learning', 'struggling', etc.)
+        limit: Maximum number of words to return
+        offset: Number of words to skip (for pagination)
+        exclude_practiced_today: If True, skip words already practiced today
+    """
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    query = """
         SELECT v.*, vp.ease_factor, vp.interval_days, vp.repetitions,
-               vp.times_correct, vp.times_incorrect, vp.status
+               vp.times_correct, vp.times_incorrect, vp.status,
+               u.name as unit_name
         FROM vocabulary v
         JOIN vocabulary_progress vp ON v.id = vp.vocabulary_id
+        LEFT JOIN units u ON v.unit_id = u.id
         WHERE vp.status = ?
-        ORDER BY vp.times_incorrect DESC, vp.last_review ASC
-        LIMIT ?
-    """, (status, limit))
+    """
+    params = [status]
 
+    if exclude_practiced_today:
+        query += " AND (vp.last_review IS NULL OR vp.last_review < ?)"
+        params.append(today_start)
+
+    query += " ORDER BY vp.times_incorrect DESC, vp.last_review ASC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    cursor.execute(query, params)
     results = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return results
+
+
+def count_vocabulary_by_status(status: str, exclude_practiced_today: bool = False) -> int:
+    """Count vocabulary items by status, optionally excluding those practiced today."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    query = "SELECT COUNT(*) FROM vocabulary_progress WHERE status = ?"
+    params = [status]
+
+    if exclude_practiced_today:
+        query += " AND (last_review IS NULL OR last_review < ?)"
+        params.append(today_start)
+
+    cursor.execute(query, params)
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+
+def get_vocabulary_pipeline_stats() -> dict:
+    """
+    Get detailed vocabulary pipeline statistics showing words by rehearsal progress.
+
+    Returns dict with:
+    - new: Words never practiced
+    - struggling: Words with repeated failures
+    - learning_by_reps: Dict of {1: count, 2: count, 3: count, 4+: count} for learning words
+    - learned: Words considered mastered
+    - practiced_today: How many words practiced today
+    - remaining_today: Learning/struggling words not yet practiced today
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    stats = {}
+
+    # New words (never practiced)
+    cursor.execute("SELECT COUNT(*) FROM vocabulary_progress WHERE status = 'new'")
+    stats['new'] = cursor.fetchone()[0]
+
+    # Struggling words
+    cursor.execute("SELECT COUNT(*) FROM vocabulary_progress WHERE status = 'struggling'")
+    stats['struggling'] = cursor.fetchone()[0]
+
+    # Learned/mastered words
+    cursor.execute("SELECT COUNT(*) FROM vocabulary_progress WHERE status = 'learned'")
+    stats['learned'] = cursor.fetchone()[0]
+
+    # Learning words broken down by repetitions (successful recalls)
+    cursor.execute("""
+        SELECT
+            CASE
+                WHEN repetitions = 1 THEN '1'
+                WHEN repetitions = 2 THEN '2'
+                WHEN repetitions = 3 THEN '3'
+                ELSE '4+'
+            END as rep_group,
+            COUNT(*) as count
+        FROM vocabulary_progress
+        WHERE status = 'learning'
+        GROUP BY rep_group
+        ORDER BY rep_group
+    """)
+    learning_by_reps = {'1': 0, '2': 0, '3': 0, '4+': 0}
+    for row in cursor.fetchall():
+        learning_by_reps[row['rep_group']] = row['count']
+    stats['learning_by_reps'] = learning_by_reps
+    stats['learning_total'] = sum(learning_by_reps.values())
+
+    # Words practiced today
+    cursor.execute("""
+        SELECT COUNT(*) FROM vocabulary_progress
+        WHERE last_review >= ?
+    """, (today_start,))
+    stats['practiced_today'] = cursor.fetchone()[0]
+
+    # Learning/struggling words NOT yet practiced today
+    cursor.execute("""
+        SELECT COUNT(*) FROM vocabulary_progress
+        WHERE status IN ('learning', 'struggling')
+        AND (last_review IS NULL OR last_review < ?)
+    """, (today_start,))
+    stats['remaining_today'] = cursor.fetchone()[0]
+
+    # Total words
+    cursor.execute("SELECT COUNT(*) FROM vocabulary")
+    stats['total'] = cursor.fetchone()[0]
+
+    conn.close()
+    return stats
 
 
 def get_vocabulary_stats() -> dict:

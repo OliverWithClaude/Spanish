@@ -38,6 +38,8 @@ from src.database import (
     get_vocabulary_for_review,
     get_vocabulary_by_id,
     get_vocabulary_by_status,
+    count_vocabulary_by_status,
+    get_vocabulary_pipeline_stats,
     update_vocabulary_progress,
     record_pronunciation_attempt,
     get_statistics,
@@ -326,6 +328,8 @@ def transcribe_voice_input(audio_file):
 current_vocab_english = ""
 # Queue for on-demand practice (struggling/learning words)
 vocab_practice_queue = []
+# Track offset for "Practice N Words" buttons (reset when switching status)
+vocab_practice_offset = {'learning': 0, 'struggling': 0}
 
 def get_vocab_for_review():
     """Get vocabulary items due for review - hide English initially, autoplay audio"""
@@ -354,23 +358,86 @@ def get_vocab_for_review():
 
 
 def load_struggling_words():
-    """Load 20 struggling words into the practice queue"""
-    global vocab_practice_queue
-    words = get_vocabulary_by_status('struggling', limit=20)
+    """Load next 20 struggling words into the practice queue"""
+    global vocab_practice_queue, vocab_practice_offset
+
+    # Get total count to know when to wrap around
+    total = count_vocabulary_by_status('struggling')
+    if total == 0:
+        return "No struggling words found."
+
+    # Get next batch with current offset
+    words = get_vocabulary_by_status('struggling', limit=20, offset=vocab_practice_offset['struggling'])
+
+    # If we got fewer words than requested, we've reached the end - wrap around
+    if len(words) < 20:
+        vocab_practice_offset['struggling'] = 0
+        if len(words) == 0:
+            words = get_vocabulary_by_status('struggling', limit=20, offset=0)
+    else:
+        vocab_practice_offset['struggling'] += 20
+
     if words:
         vocab_practice_queue = words
-        return f"Loaded {len(words)} struggling words. Go to 📚 Vocabulary tab to practice!"
+        remaining = total - vocab_practice_offset['struggling']
+        if remaining < 0:
+            remaining = total
+        return f"📚 Loaded {len(words)} struggling words ({remaining} more available). Go to Vocabulary tab!"
     return "No struggling words found."
 
 
 def load_learning_words():
-    """Load 20 learning words into the practice queue"""
-    global vocab_practice_queue
-    words = get_vocabulary_by_status('learning', limit=20)
+    """Load next 20 learning words into the practice queue"""
+    global vocab_practice_queue, vocab_practice_offset
+
+    # Get total count to know when to wrap around
+    total = count_vocabulary_by_status('learning')
+    if total == 0:
+        return "No learning words found."
+
+    # Get next batch with current offset
+    words = get_vocabulary_by_status('learning', limit=20, offset=vocab_practice_offset['learning'])
+
+    # If we got fewer words than requested, we've reached the end - wrap around
+    if len(words) < 20:
+        vocab_practice_offset['learning'] = 0
+        if len(words) == 0:
+            words = get_vocabulary_by_status('learning', limit=20, offset=0)
+    else:
+        vocab_practice_offset['learning'] += 20
+
     if words:
         vocab_practice_queue = words
-        return f"Loaded {len(words)} learning words. Go to 📚 Vocabulary tab to practice!"
+        remaining = total - vocab_practice_offset['learning']
+        if remaining < 0:
+            remaining = total
+        return f"📚 Loaded {len(words)} learning words ({remaining} more available). Go to Vocabulary tab!"
     return "No learning words found."
+
+
+def get_pipeline_display():
+    """Generate the vocabulary pipeline display for the Home tab"""
+    stats = get_vocabulary_pipeline_stats()
+
+    learning_reps = stats['learning_by_reps']
+
+    display = f"""### 📊 Vocabulary Pipeline
+
+| Stage | Count | Description |
+|-------|------:|-------------|
+| 🆕 New | {stats['new']} | Never practiced |
+| 😤 Struggling | {stats['struggling']} | Need extra practice |
+| 📖 Learning (1 rep) | {learning_reps['1']} | 1 successful recall |
+| 📖 Learning (2 reps) | {learning_reps['2']} | 2 successful recalls |
+| 📖 Learning (3 reps) | {learning_reps['3']} | 3 successful recalls |
+| 📖 Learning (4+ reps) | {learning_reps['4+']} | Almost mastered |
+| ✅ Learned | {stats['learned']} | Mastered! |
+
+**Today:** {stats['practiced_today']} practiced, {stats['remaining_today']} remaining
+
+**Total:** {stats['total']} words
+"""
+    return display
 
 
 def reveal_vocab_translation():
@@ -779,6 +846,9 @@ def create_app():
 
                 practice_queue_status = gr.Markdown()
 
+                # Vocabulary Pipeline View
+                pipeline_display = gr.Markdown()
+
                 with gr.Accordion("📚 Learning Path", open=False):
                     learning_path_display = gr.Markdown()
                     refresh_path_btn = gr.Button("Refresh Path")
@@ -786,6 +856,7 @@ def create_app():
                 # Event handlers
                 refresh_home_btn.click(get_ai_coach_display, outputs=[ai_coach_display])
                 refresh_home_btn.click(get_xp_display, outputs=[xp_display])
+                refresh_home_btn.click(get_pipeline_display, outputs=[pipeline_display])
                 refresh_path_btn.click(get_learning_path_display, outputs=[learning_path_display])
                 learn_new_btn.click(get_new_words_display, outputs=[new_words_display])
                 practice_struggling_btn.click(load_struggling_words, outputs=[practice_queue_status])
@@ -794,6 +865,7 @@ def create_app():
                 # Load on startup
                 app.load(get_ai_coach_display, outputs=[ai_coach_display])
                 app.load(get_xp_display, outputs=[xp_display])
+                app.load(get_pipeline_display, outputs=[pipeline_display])
                 app.load(get_learning_path_display, outputs=[learning_path_display])
 
             # ============ Speaking Practice Tab ============
