@@ -1612,5 +1612,9 @@ if __name__ == "__main__":
         server_name="127.0.0.1",
         server_port=port,
         share=False,
-        theme=gr.themes.Soft(primary_hue="orange")
+        theme=gr.themes.Soft(
+            primary_hue="violet",
+            secondary_hue="slate",
+            neutral_hue="gray"
+        )
     )
