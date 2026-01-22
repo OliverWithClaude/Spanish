@@ -33,3 +33,6 @@ Thumbs.db
 .env
 .env.local
 .claude/
+
+# Personal documents (not for version control)
+PERSONAL_ROADMAP_*.md
