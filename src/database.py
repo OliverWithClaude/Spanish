@@ -243,6 +243,51 @@ def init_database():
         )
     """)
 
+    # ============ DELE Exam Tracking Tables ============
+
+    # DELE topics (exam topic categories)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dele_topics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            level TEXT NOT NULL,
+            topic_key TEXT NOT NULL,
+            topic_name TEXT NOT NULL,
+            topic_name_spanish TEXT,
+            required_words INTEGER DEFAULT 20,
+            description TEXT,
+            UNIQUE(level, topic_key)
+        )
+    """)
+
+    # Mapping vocabulary to DELE topics
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dele_topic_vocabulary (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            topic_id INTEGER NOT NULL,
+            vocabulary_id INTEGER NOT NULL,
+            FOREIGN KEY (topic_id) REFERENCES dele_topics(id),
+            FOREIGN KEY (vocabulary_id) REFERENCES vocabulary(id),
+            UNIQUE(topic_id, vocabulary_id)
+        )
+    """)
+
+    # DELE core word list (essential vocabulary for each level)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dele_core_vocabulary (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            level TEXT NOT NULL,
+            spanish TEXT NOT NULL,
+            english TEXT,
+            topic_key TEXT,
+            is_verb BOOLEAN DEFAULT FALSE,
+            UNIQUE(level, spanish)
+        )
+    """)
+
+    # Create indexes for DELE tables
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_dele_topic_level ON dele_topics(level)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_dele_core_level ON dele_core_vocabulary(level)")
+
     conn.commit()
 
     # Initialize user progress if not exists

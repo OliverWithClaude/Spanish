@@ -71,10 +71,19 @@ from src.content_analysis import (
     ContentAnalysis,
     process_words_with_llm
 )
+from src.dele_tracker import (
+    init_dele_topics,
+    format_readiness_display,
+    calculate_dele_readiness,
+    get_study_priorities,
+    add_missing_dele_vocabulary,
+    get_dele_vocabulary_summary
+)
 
 # Initialize database and content
 init_database()
 populate_database()
+init_dele_topics()  # Initialize DELE topics
 
 
 # Preload Whisper model at startup to avoid timeout during first request
@@ -1313,10 +1322,75 @@ def create_app():
 
             # ============ Statistics Tab ============
             with gr.Tab("📊 Progress"):
-                stats_display = gr.Markdown()
-                refresh_stats_btn = gr.Button("Refresh")
-                refresh_stats_btn.click(get_stats_display, outputs=[stats_display])
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.Markdown("## Learning Statistics")
+                        stats_display = gr.Markdown()
+                        refresh_stats_btn = gr.Button("🔄 Refresh Stats")
+                        refresh_stats_btn.click(get_stats_display, outputs=[stats_display])
+
+                    with gr.Column(scale=1):
+                        gr.Markdown("## DELE Exam Readiness")
+                        dele_level = gr.Dropdown(
+                            choices=["A1", "A2"],
+                            value="A1",
+                            label="Target DELE Level"
+                        )
+                        dele_display = gr.Markdown()
+
+                        with gr.Row():
+                            refresh_dele_btn = gr.Button("🔄 Refresh", scale=1)
+                            add_dele_words_btn = gr.Button("📚 Add Missing Words", variant="primary", scale=2)
+
+                        add_words_status = gr.Markdown(visible=True)
+
+                        def get_dele_display(level):
+                            return format_readiness_display(level)
+
+                        def add_missing_words(level):
+                            """Add missing DELE vocabulary and return status."""
+                            summary_before = get_dele_vocabulary_summary(level)
+                            added, skipped, topics = add_missing_dele_vocabulary(level)
+
+                            if added == 0 and skipped == 0:
+                                return f"✅ **Great!** You already have all DELE {level} vocabulary!"
+
+                            topic_list = ", ".join(topics[:5])
+                            if len(topics) > 5:
+                                topic_list += f" (+{len(topics)-5} more)"
+
+                            return f"""### ✅ Words Added!
+
+**{added}** new words added to your vocabulary
+**{skipped}** words already in your collection
+
+**Topics updated:** {topic_list}
+
+Go to the **Vocabulary** tab to start learning these words!"""
+
+                        refresh_dele_btn.click(
+                            get_dele_display,
+                            inputs=[dele_level],
+                            outputs=[dele_display]
+                        )
+                        dele_level.change(
+                            get_dele_display,
+                            inputs=[dele_level],
+                            outputs=[dele_display]
+                        )
+                        add_dele_words_btn.click(
+                            add_missing_words,
+                            inputs=[dele_level],
+                            outputs=[add_words_status]
+                        ).then(
+                            get_dele_display,
+                            inputs=[dele_level],
+                            outputs=[dele_display]
+                        )
+
+                # Load initial displays
                 app.load(get_stats_display, outputs=[stats_display])
+                app.load(lambda: format_readiness_display("A1"), outputs=[dele_display])
 
             # ============ Content Discovery Tab ============
             with gr.Tab("🔍 Discover"):

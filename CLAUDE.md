@@ -36,6 +36,9 @@ ollama pull llama3.2
 | `src/database.py` | SQLite schema, SM-2 spaced repetition, XP/progress tracking |
 | `src/content.py` | 429 vocabulary words + 204 phrases (CEFR A1-A2) |
 | `src/images.py` | Unsplash API integration for vocabulary images |
+| `src/dele_tracker.py` | DELE exam readiness tracking and vocabulary gap analysis |
+| `src/content_analysis.py` | Text analysis, tokenization, vocabulary comparison |
+| `src/frequency_data.py` | Spanish word frequency data (~5000 words) |
 
 ### Key Data Flows
 
@@ -44,6 +47,10 @@ ollama pull llama3.2
 **Vocabulary Review**: `get_vocabulary_for_review()` (SM-2 query) → show word → user rates recall → `update_vocabulary_progress()` (SM-2 update) → `record_practice_activity()`
 
 **Conversation**: User message → `chat()` with conversation history → AI response → `text_to_speech()` → append to `conversation_history`
+
+**DELE Readiness**: `calculate_dele_readiness(level)` → compares user vocabulary against DELE topic requirements → weighted scoring (learned=1.0, learning=0.5) → displays progress in Progress tab
+
+**Content Discovery**: Paste text → `analyze_content()` → tokenize/lemmatize → compare against user vocabulary → create package → `add_package_words_to_vocabulary()`
 
 ### State Management
 
@@ -55,6 +62,10 @@ Global variables in `app.py` track session state:
 ### Database Tables
 
 Core tables: `sections`, `units`, `vocabulary`, `vocabulary_progress` (SM-2), `phrases`, `practice_sessions`, `pronunciation_attempts`, `conversations`, `user_progress`, `xp_log`, `settings`
+
+DELE tables: `dele_topics`, `dele_topic_vocabulary`, `dele_core_vocabulary`
+
+Content Discovery tables: `content_packages`, `package_vocabulary`, `input_tracking`
 
 XP thresholds: Level 1 = 0 XP, Level 5 = 1,000 XP (A1.2 unlock), Level 10 = 3,000 XP (A2.1 unlock)
 
@@ -103,6 +114,31 @@ The "Help me remember" feature in the Vocabulary tab uses Unsplash for images. T
 The `.env` file is automatically loaded when the app starts and is gitignored for security.
 
 **Note**: The free tier allows 50 requests/hour. Without the API key, the "Help me remember" feature still works but without images.
+
+## DELE Exam Tracker
+
+The Progress tab includes DELE exam readiness tracking for A1 and A2 levels.
+
+### How Readiness is Calculated
+
+- **Vocabulary Coverage**: Compares user's practiced words against DELE topic keywords
+- **Topic Completion**: Percentage of topics with 80%+ coverage
+- **Core Verbs**: Coverage of essential verbs for each level
+
+### Word Weighting
+
+Words are weighted by learning status:
+- `learned` / `due`: 1.0 (full credit)
+- `learning`: 0.5 (half credit)
+- `new` / `struggling`: 0.0 (not counted)
+
+### DELE A1 Topics (174 words)
+
+Greetings, Personal Info, Numbers, Time & Dates, Family, Colors, Basic Verbs, Basic Food & Drink
+
+### Add Missing Words
+
+The "Add Missing Words" button adds all DELE vocabulary not yet in your database. Words are added with status `new` - practice them in the Vocabulary tab to increase your readiness score.
 
 ## Testing Notes
 
