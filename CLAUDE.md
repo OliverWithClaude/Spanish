@@ -89,7 +89,16 @@ System prompts in `src/llm.py` define:
 
 ## Configuration
 
-- Change LLM model: edit `DEFAULT_MODEL` in `src/llm.py`
+### LLM Model Configuration
+
+Two-tier model strategy in `src/llm.py`:
+- `FAST_MODEL` (llama3.2:latest): Conversation, pronunciation feedback, suggestions, memory sentences
+- `ACCURATE_MODEL` (qwen3:30b): Word analysis, grammar, vocabulary definitions, translation
+
+Temperature settings per task type are defined in `TEMPERATURE_SETTINGS` dict.
+
+### Other Settings
+
 - Voices are hardcoded in `src/audio.py` `SPANISH_VOICES` dict
 - Database auto-creates on first run in `data/hablaconmigo.db`
 

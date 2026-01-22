@@ -1,13 +1,38 @@
 """
 LLM module for Spanish Learning App
 Handles conversation and feedback using Ollama
+
+Two-tier model strategy:
+- FAST_MODEL: For high-frequency, conversational tasks (speed priority)
+- ACCURATE_MODEL: For linguistic analysis, grammar, definitions (accuracy priority)
 """
 
 import ollama
-from typing import Generator
+from typing import Generator, Optional
 
-# Default model - can be changed based on what's installed
-DEFAULT_MODEL = "llama3.2:latest"
+# ============ Model Configuration ============
+# Fast model for conversation and real-time interactions
+FAST_MODEL = "llama3.2:latest"
+
+# Accurate model for linguistic analysis and teaching
+# Options: "qwen3:30b", "gemma3:27b", "deepseek-r1:8b"
+ACCURATE_MODEL = "qwen3:30b"
+
+# Legacy default (for backwards compatibility)
+DEFAULT_MODEL = FAST_MODEL
+
+# ============ Temperature Settings ============
+# Lower = more deterministic, Higher = more creative
+TEMPERATURE_SETTINGS = {
+    "conversation": 0.8,      # Natural, varied responses
+    "translation": 0.3,       # Consistent, accurate
+    "grammar": 0.4,           # Clear, precise explanations
+    "vocabulary": 0.4,        # Accurate definitions
+    "word_analysis": 0.2,     # Very precise JSON output
+    "memory_sentence": 0.9,   # Creative, memorable
+    "suggestion": 0.6,        # Balanced
+    "pronunciation": 0.5,     # Balanced feedback
+}
 
 # System prompts for different modes
 SYSTEM_PROMPTS = {
@@ -43,21 +68,8 @@ Usuario: "Yo soy tiene hambre"
 Tú: "¡Ah, tienes hambre! Yo también. ¿Qué te gustaría comer?"
 """,
 
-    "conversation": """Eres una compañera de conversación amigable que ayuda a un principiante a practicar español.
-Tu nombre es María y trabajas en una oficina en Madrid.
-
-Reglas importantes:
-1. Habla SOLO en español, usando vocabulario simple y frases cortas
-2. Si el usuario comete errores, corrige suavemente y continúa la conversación
-3. Usa español de España (Castilian), no latinoamericano
-4. Mantén las respuestas cortas (1-3 frases)
-5. Haz preguntas para mantener la conversación
-6. Temas comunes: el tiempo, el trabajo, el fin de semana, la comida, planes
-
-Ejemplo de corrección suave:
-Usuario: "Yo soy tiene hambre"
-Tú: "¡Ah, tienes hambre! Yo también. ¿Qué te gustaría comer?"
-""",
+    # "conversation" is kept as alias to conversation_female for backwards compatibility
+    # (will be set after dict definition)
 
     "pronunciation_feedback": """You are a Spanish pronunciation coach helping a beginner learner.
 The learner is trying to say a Spanish phrase, and you will compare what they said to what they should have said.
@@ -158,6 +170,9 @@ Respond with ONLY valid JSON, no other text:
 """
 }
 
+# Add backwards-compatible alias for legacy "conversation" mode
+SYSTEM_PROMPTS["conversation"] = SYSTEM_PROMPTS["conversation_female"]
+
 
 def get_available_models() -> list:
     """Get list of available Ollama models"""
@@ -169,11 +184,42 @@ def get_available_models() -> list:
         return []
 
 
+def _get_model_for_mode(mode: str) -> str:
+    """Get the appropriate model for a given mode."""
+    # Modes that require accuracy (use larger model)
+    accurate_modes = {
+        "grammar_explanation",
+        "vocabulary_helper",
+        "word_analysis",
+        "translate",
+    }
+    if mode in accurate_modes:
+        return ACCURATE_MODEL
+    return FAST_MODEL
+
+
+def _get_temperature_for_mode(mode: str) -> float:
+    """Get the appropriate temperature for a given mode."""
+    mode_to_temp = {
+        "conversation_female": TEMPERATURE_SETTINGS["conversation"],
+        "conversation_male": TEMPERATURE_SETTINGS["conversation"],
+        "conversation": TEMPERATURE_SETTINGS["conversation"],
+        "translate": TEMPERATURE_SETTINGS["translation"],
+        "grammar_explanation": TEMPERATURE_SETTINGS["grammar"],
+        "vocabulary_helper": TEMPERATURE_SETTINGS["vocabulary"],
+        "word_analysis": TEMPERATURE_SETTINGS["word_analysis"],
+        "memory_sentence": TEMPERATURE_SETTINGS["memory_sentence"],
+        "suggest_response": TEMPERATURE_SETTINGS["suggestion"],
+        "pronunciation_feedback": TEMPERATURE_SETTINGS["pronunciation"],
+    }
+    return mode_to_temp.get(mode, 0.7)
+
+
 def chat(
     message: str,
     mode: str = "conversation",
     history: list = None,
-    model: str = DEFAULT_MODEL
+    model: str = None
 ) -> str:
     """
     Chat with the LLM
@@ -182,12 +228,17 @@ def chat(
         message: User's message
         mode: One of 'conversation', 'pronunciation_feedback', 'grammar_explanation', 'vocabulary_helper'
         history: List of previous messages [{"role": "user/assistant", "content": "..."}]
-        model: Ollama model to use
+        model: Ollama model to use (auto-selected based on mode if None)
 
     Returns:
         Assistant's response
     """
-    system_prompt = SYSTEM_PROMPTS.get(mode, SYSTEM_PROMPTS["conversation"])
+    # Auto-select model based on mode if not specified
+    if model is None:
+        model = _get_model_for_mode(mode)
+
+    system_prompt = SYSTEM_PROMPTS.get(mode, SYSTEM_PROMPTS["conversation_female"])
+    temperature = _get_temperature_for_mode(mode)
 
     messages = [{"role": "system", "content": system_prompt}]
 
@@ -199,20 +250,23 @@ def chat(
     try:
         response = ollama.chat(
             model=model,
-            messages=messages
+            messages=messages,
+            options={
+                "temperature": temperature,
+            }
         )
         return response['message']['content']
     except Exception as e:
         return f"Error: {e}. Make sure Ollama is running and the model '{model}' is installed."
 
 
-def translate_to_english(spanish_text: str, model: str = DEFAULT_MODEL) -> str:
-    """Translate Spanish text to English"""
+def translate_to_english(spanish_text: str, model: str = None) -> str:
+    """Translate Spanish text to English (uses ACCURATE_MODEL by default)"""
     return chat(spanish_text, mode="translate", model=model)
 
 
-def suggest_response(history: list, model: str = DEFAULT_MODEL) -> str:
-    """Suggest a response for the learner based on conversation history"""
+def suggest_response(history: list, model: str = None) -> str:
+    """Suggest a response for the learner based on conversation history (uses FAST_MODEL)"""
     # Build a summary of recent conversation for context
     recent = history[-6:] if len(history) > 6 else history  # Last 3 exchanges
     context = "\n".join([
@@ -228,7 +282,7 @@ def chat_stream(
     message: str,
     mode: str = "conversation",
     history: list = None,
-    model: str = DEFAULT_MODEL
+    model: str = None
 ) -> Generator[str, None, None]:
     """
     Stream chat response from LLM
@@ -237,12 +291,17 @@ def chat_stream(
         message: User's message
         mode: Conversation mode
         history: Previous messages
-        model: Ollama model
+        model: Ollama model (auto-selected based on mode if None)
 
     Yields:
         Response chunks as they arrive
     """
-    system_prompt = SYSTEM_PROMPTS.get(mode, SYSTEM_PROMPTS["conversation"])
+    # Auto-select model based on mode if not specified
+    if model is None:
+        model = _get_model_for_mode(mode)
+
+    system_prompt = SYSTEM_PROMPTS.get(mode, SYSTEM_PROMPTS["conversation_female"])
+    temperature = _get_temperature_for_mode(mode)
 
     messages = [{"role": "system", "content": system_prompt}]
 
@@ -255,7 +314,10 @@ def chat_stream(
         stream = ollama.chat(
             model=model,
             messages=messages,
-            stream=True
+            stream=True,
+            options={
+                "temperature": temperature,
+            }
         )
         for chunk in stream:
             yield chunk['message']['content']
@@ -337,14 +399,15 @@ Tip: [pronunciation or usage tip]"""
     return chat(prompt, mode="vocabulary_helper")
 
 
-def generate_memory_sentence(spanish: str, english: str, model: str = DEFAULT_MODEL) -> str:
+def generate_memory_sentence(spanish: str, english: str, model: str = None) -> str:
     """
     Generate a memorable sentence using a vocabulary word.
+    Uses FAST_MODEL by default (creative task, speed preferred).
 
     Args:
         spanish: The Spanish word
         english: The English translation
-        model: Ollama model to use
+        model: Ollama model to use (auto-selected if None)
 
     Returns:
         A vivid Spanish sentence using the word
@@ -353,7 +416,7 @@ def generate_memory_sentence(spanish: str, english: str, model: str = DEFAULT_MO
     return chat(prompt, mode="memory_sentence", model=model)
 
 
-def analyze_words_with_llm(words: list, model: str = DEFAULT_MODEL) -> list:
+def analyze_words_with_llm(words: list, model: str = None) -> list:
     """
     Analyze a list of Spanish words using Ollama to get:
     - Base form (infinitive for verbs, singular for nouns)
@@ -361,9 +424,11 @@ def analyze_words_with_llm(words: list, model: str = DEFAULT_MODEL) -> list:
     - Part of speech
     - Whether to skip (names, stop words)
 
+    Uses ACCURATE_MODEL by default for linguistic precision.
+
     Args:
         words: List of Spanish words to analyze
-        model: Ollama model to use
+        model: Ollama model to use (defaults to ACCURATE_MODEL)
 
     Returns:
         List of dicts with analyzed word info
