@@ -118,6 +118,43 @@ Examples:
 - Word: "silla" (chair) -> "La silla roja está en la cocina."
 - Word: "perro" (dog) -> "El perro grande corre en el parque."
 - Word: "café" (coffee) -> "Mi café caliente está en la mesa."
+""",
+
+    "word_analysis": """You are a Spanish language expert helping analyze words for a vocabulary learning app.
+
+For each Spanish word given, provide the dictionary/base form and English translation.
+
+SKIP these word types (mark skip: true):
+- Proper nouns: names (María, Carlos, Eduardo, Félix), places (Madrid, España), brands
+- Articles: el, la, los, las, un, una, unos, unas
+- Pronouns: yo, tú, él, ella, nosotros, vosotros, ellos, me, te, se, lo, la, le, nos
+- Conjunctions: y, o, pero, porque, cuando, que, si, aunque, como
+- Prepositions: de, en, a, con, por, para, sin, sobre, entre, hasta
+- Interjections and sounds: ah, oh, aaah, etc.
+
+INCLUDE these (skip: false):
+- Verbs → provide INFINITIVE form (sienta → sentar, miran → mirar, habla → hablar)
+- Nouns → provide SINGULAR form (personas → persona, libros → libro)
+- Adjectives → provide MASCULINE SINGULAR (muchas → mucho, altas → alto)
+- Adverbs → keep as-is (muy, más, también, ahora)
+
+CRITICAL RULES:
+1. If a word is ALREADY in its base/dictionary form, keep it unchanged (poema → poema, NOT poesía)
+2. Do NOT change a word to a DIFFERENT word - only remove inflections (plural→singular, conjugated→infinitive)
+3. "poema" and "poesía" are DIFFERENT words - do not substitute one for the other
+4. Only convert verb CONJUGATIONS to infinitives, not verb-like nouns
+
+EXAMPLES:
+- "sienta" → {"spanish": "sienta", "base_form": "sentar", "english": "to sit", "pos": "verb", "skip": false}
+- "miran" → {"spanish": "miran", "base_form": "mirar", "english": "to look/watch", "pos": "verb", "skip": false}
+- "poema" → {"spanish": "poema", "base_form": "poema", "english": "poem", "pos": "noun", "skip": false}
+- "poemas" → {"spanish": "poemas", "base_form": "poema", "english": "poem", "pos": "noun", "skip": false}
+- "personas" → {"spanish": "personas", "base_form": "persona", "english": "person", "pos": "noun", "skip": false}
+- "Eduardo" → {"spanish": "Eduardo", "skip": true, "reason": "name"}
+- "cuando" → {"spanish": "cuando", "skip": true, "reason": "conjunction"}
+
+Respond with ONLY valid JSON, no other text:
+{"words": [...]}
 """
 }
 
@@ -314,6 +351,86 @@ def generate_memory_sentence(spanish: str, english: str, model: str = DEFAULT_MO
     """
     prompt = f'Create a memorable sentence for: "{spanish}" (meaning: {english})'
     return chat(prompt, mode="memory_sentence", model=model)
+
+
+def analyze_words_with_llm(words: list, model: str = DEFAULT_MODEL) -> list:
+    """
+    Analyze a list of Spanish words using Ollama to get:
+    - Base form (infinitive for verbs, singular for nouns)
+    - English translation
+    - Part of speech
+    - Whether to skip (names, stop words)
+
+    Args:
+        words: List of Spanish words to analyze
+        model: Ollama model to use
+
+    Returns:
+        List of dicts with analyzed word info
+    """
+    import json
+
+    if not words:
+        return []
+
+    # Process in batches of 20 to avoid overwhelming the LLM
+    batch_size = 20
+    all_results = []
+
+    for i in range(0, len(words), batch_size):
+        batch = words[i:i + batch_size]
+        words_str = ", ".join(batch)
+
+        prompt = f"Analyze these Spanish words: {words_str}"
+
+        try:
+            response = chat(prompt, mode="word_analysis", model=model)
+
+            # Try to parse JSON from response
+            # Handle case where LLM might include extra text
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+
+            if json_start >= 0 and json_end > json_start:
+                json_str = response[json_start:json_end]
+                data = json.loads(json_str)
+                all_results.extend(data.get('words', []))
+            else:
+                print(f"Warning: Could not parse LLM response for word analysis")
+                # Fallback: return words without analysis
+                for word in batch:
+                    all_results.append({
+                        'spanish': word,
+                        'base_form': word,
+                        'english': None,
+                        'pos': 'unknown',
+                        'skip': False
+                    })
+
+        except json.JSONDecodeError as e:
+            print(f"Warning: JSON decode error in word analysis: {e}")
+            # Fallback
+            for word in batch:
+                all_results.append({
+                    'spanish': word,
+                    'base_form': word,
+                    'english': None,
+                    'pos': 'unknown',
+                    'skip': False
+                })
+        except Exception as e:
+            print(f"Error in word analysis: {e}")
+            # Fallback
+            for word in batch:
+                all_results.append({
+                    'spanish': word,
+                    'base_form': word,
+                    'english': None,
+                    'pos': 'unknown',
+                    'skip': False
+                })
+
+    return all_results
 
 
 if __name__ == "__main__":

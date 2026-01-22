@@ -36,6 +36,7 @@ class WordInfo:
     in_dele_a2: bool
     occurrences: int = 1
     context_sentences: List[str] = field(default_factory=list)
+    original_forms: List[str] = field(default_factory=list)  # Original forms from text (e.g., conjugated verbs)
 
 
 @dataclass
@@ -555,7 +556,8 @@ def analyze_content(text: str, include_stop_words: bool = False) -> ContentAnaly
             frequency_tier=get_frequency_tier(lemma),
             in_dele_a2=in_dele,
             occurrences=word_counts.get(lemma, 1),
-            context_sentences=context
+            context_sentences=context,
+            original_forms=list(original_forms)  # Keep track of original forms from text
         )
         new_words_details.append(info)
 
@@ -650,6 +652,119 @@ def get_comprehension_recommendation(analysis: ContentAnalysis) -> str:
         return f"This content may be too advanced. Consider easier material or learn {high_value} essential words first."
 
 
+def process_words_with_llm(words_details: List[WordInfo], text: str) -> List[WordInfo]:
+    """
+    Process a list of WordInfo through LLM to:
+    - Filter out names and stop words
+    - Get correct base forms
+    - Get accurate translations
+
+    Args:
+        words_details: List of WordInfo from analyze_content
+        text: Original text (for context in finding sentences)
+
+    Returns:
+        Cleaned list of WordInfo with LLM-verified data
+    """
+    from src.llm import analyze_words_with_llm
+
+    if not words_details:
+        return []
+
+    # Extract just the Spanish words
+    words_to_analyze = [w.spanish for w in words_details]
+
+    # Get LLM analysis
+    print(f"Analyzing {len(words_to_analyze)} words with LLM...")
+    llm_results = analyze_words_with_llm(words_to_analyze)
+
+    # Build a map of LLM results
+    llm_map = {}
+    for result in llm_results:
+        spanish = result.get('spanish', '').lower()
+        llm_map[spanish] = result
+
+    # Process and filter words
+    cleaned_words = []
+    sentences = extract_sentences(text)
+
+    for word_info in words_details:
+        spanish_lower = word_info.spanish.lower()
+        llm_data = llm_map.get(spanish_lower, {})
+
+        # Skip if LLM says to skip (names, stop words, etc.)
+        if llm_data.get('skip', False):
+            reason = llm_data.get('reason', 'filtered by LLM')
+            print(f"  Skipping '{word_info.spanish}': {reason}")
+            continue
+
+        # Get base form from LLM (or keep original)
+        base_form = llm_data.get('base_form', word_info.spanish)
+        if base_form:
+            base_form = base_form.lower().strip()
+        else:
+            base_form = word_info.spanish
+
+        # Get translation from LLM (or keep original from frequency data)
+        translation = llm_data.get('english') or word_info.english
+
+        # Get part of speech
+        pos = llm_data.get('pos', 'unknown')
+
+        # Find context sentences using original forms from the text
+        # This ensures we find sentences with conjugated verbs even when storing infinitive
+        context = []
+        original_forms = word_info.original_forms if word_info.original_forms else [word_info.spanish]
+        for form in original_forms:
+            context.extend(find_word_context(form, sentences))
+        # Also try the base form if no context found
+        if not context:
+            context = find_word_context(base_form, sentences)
+        # Deduplicate and limit
+        context = list(dict.fromkeys(context))[:3]
+
+        # Look up frequency data for the base form
+        freq_rank = get_frequency_rank(base_form)
+        if freq_rank == 99999:
+            freq_rank = word_info.frequency_rank
+
+        cefr = estimate_cefr_level(base_form)
+        if cefr == 'B1':  # Default/unknown
+            cefr = word_info.cefr_level
+
+        in_dele = is_in_dele_vocabulary(base_form, 'A2')
+        if not in_dele:
+            in_dele = word_info.in_dele_a2
+
+        # Create cleaned WordInfo
+        cleaned = WordInfo(
+            spanish=base_form,
+            english=translation,
+            frequency_rank=freq_rank,
+            cefr_level=cefr,
+            frequency_tier=get_frequency_tier(base_form),
+            in_dele_a2=in_dele,
+            occurrences=word_info.occurrences,
+            context_sentences=context,
+            original_forms=original_forms  # Keep original forms for reference
+        )
+        cleaned_words.append(cleaned)
+
+    # Remove duplicates (same base form)
+    seen = set()
+    unique_words = []
+    for word in cleaned_words:
+        if word.spanish not in seen:
+            seen.add(word.spanish)
+            unique_words.append(word)
+
+    # Sort by frequency
+    unique_words.sort(key=lambda w: w.frequency_rank)
+
+    print(f"  Kept {len(unique_words)} words after LLM processing")
+    return unique_words
+
+
 # Export for convenience
 __all__ = [
     'analyze_content',
@@ -662,6 +777,7 @@ __all__ = [
     'get_comprehension_recommendation',
     'tokenize_spanish',
     'lemmatize_spanish',
+    'process_words_with_llm',
 ]
 
 

@@ -1361,13 +1361,63 @@ def get_package_vocabulary(package_id: int) -> list:
     return results
 
 
+def is_valid_vocabulary_word(spanish: str, english: str) -> tuple:
+    """
+    Check if a word passes quality checks for adding to vocabulary.
+
+    Returns:
+        (is_valid: bool, reason: str)
+    """
+    import re
+
+    # Must have Spanish word
+    if not spanish or not spanish.strip():
+        return False, "empty Spanish word"
+
+    spanish = spanish.strip().lower()
+
+    # Must have English translation
+    if not english or not english.strip():
+        return False, "missing English translation"
+
+    # Check for repeated characters (like "aaah", "oooh")
+    if re.match(r'^(.)\1{2,}', spanish):
+        return False, "repeated characters"
+
+    # Check if word contains repeated character sequences
+    if re.search(r'(.)\1{3,}', spanish):
+        return False, "excessive repeated characters"
+
+    # Too short (less than 2 characters)
+    if len(spanish) < 2:
+        return False, "too short"
+
+    # Check for common incorrect lemmatization patterns
+    # Words ending in "ar" that aren't real verbs (like "personar", "otrar")
+    suspicious_ar_words = {'personar', 'otrar', 'cuar', 'graciar', 'elefantar'}
+    if spanish in suspicious_ar_words:
+        return False, "incorrectly lemmatized"
+
+    # Check if it looks like nonsense (only consonants, or strange patterns)
+    vowels = set('aeiouáéíóúü')
+    if not any(c in vowels for c in spanish):
+        return False, "no vowels"
+
+    return True, "ok"
+
+
 def add_package_words_to_vocabulary(package_id: int, word_ids: list = None):
     """
     Add words from a package to the main vocabulary.
 
+    Includes quality checks to reject invalid words.
+
     Args:
         package_id: ID of the package
         word_ids: Optional list of specific word IDs to add. If None, adds all.
+
+    Returns:
+        tuple: (added_count, skipped_count, skipped_reasons)
     """
     conn = get_connection()
     cursor = conn.cursor()
@@ -1387,7 +1437,21 @@ def add_package_words_to_vocabulary(package_id: int, word_ids: list = None):
 
     words_to_add = cursor.fetchall()
 
+    added_count = 0
+    skipped = []
+
     for word in words_to_add:
+        # Quality check
+        is_valid, reason = is_valid_vocabulary_word(word['spanish'], word['english'])
+
+        if not is_valid:
+            skipped.append((word['spanish'], reason))
+            # Still mark as processed so it doesn't keep trying
+            cursor.execute("""
+                UPDATE package_vocabulary SET added_to_vocabulary = 1 WHERE id = ?
+            """, (word['id'],))
+            continue
+
         # Check if word already exists in vocabulary
         cursor.execute("SELECT id FROM vocabulary WHERE LOWER(spanish) = ?",
                       (word['spanish'].lower(),))
@@ -1408,6 +1472,8 @@ def add_package_words_to_vocabulary(package_id: int, word_ids: list = None):
                 VALUES (?, ?, 'new')
             """, (vocab_id, datetime.now().isoformat()))
 
+            added_count += 1
+
         # Mark as added in package
         cursor.execute("""
             UPDATE package_vocabulary SET added_to_vocabulary = 1 WHERE id = ?
@@ -1416,7 +1482,49 @@ def add_package_words_to_vocabulary(package_id: int, word_ids: list = None):
     conn.commit()
     conn.close()
 
-    return len(words_to_add)
+    # Log skipped words
+    if skipped:
+        print(f"Quality check skipped {len(skipped)} words:")
+        for word, reason in skipped:
+            print(f"  - {word}: {reason}")
+
+    return added_count, len(skipped), skipped
+
+
+def delete_vocabulary_word(vocab_id: int) -> bool:
+    """
+    Delete a vocabulary word and its progress.
+
+    Args:
+        vocab_id: ID of the vocabulary word to delete
+
+    Returns:
+        True if deleted, False if not found
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Check if word exists
+    cursor.execute("SELECT spanish FROM vocabulary WHERE id = ?", (vocab_id,))
+    row = cursor.fetchone()
+
+    if not row:
+        conn.close()
+        return False
+
+    word = row['spanish']
+
+    # Delete progress first (foreign key constraint)
+    cursor.execute("DELETE FROM vocabulary_progress WHERE vocabulary_id = ?", (vocab_id,))
+
+    # Delete vocabulary
+    cursor.execute("DELETE FROM vocabulary WHERE id = ?", (vocab_id,))
+
+    conn.commit()
+    conn.close()
+
+    print(f"Deleted vocabulary word: {word}")
+    return True
 
 
 def delete_content_package(package_id: int):

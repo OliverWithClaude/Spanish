@@ -61,13 +61,15 @@ from src.database import (
     get_content_packages,
     get_package_vocabulary,
     add_package_words_to_vocabulary,
-    fix_missing_translations
+    fix_missing_translations,
+    delete_vocabulary_word
 )
 from src.content import populate_database
 from src.content_analysis import (
     analyze_content,
     get_comprehension_recommendation,
-    ContentAnalysis
+    ContentAnalysis,
+    process_words_with_llm
 )
 
 # Initialize database and content
@@ -488,6 +490,19 @@ def get_vocab_help(word: str):
     return ""
 
 
+def delete_current_vocab(vocab_id: int):
+    """Delete the current vocabulary word and get the next one."""
+    if vocab_id:
+        success = delete_vocabulary_word(int(vocab_id))
+        if success:
+            # Get next word after deletion
+            next_word = get_vocab_for_review()
+            return ("✅ Word deleted!",) + next_word
+        else:
+            return ("❌ Word not found",) + get_vocab_for_review()
+    return ("No word selected",) + get_vocab_for_review()
+
+
 def help_me_remember(vocab_id: int):
     """
     Generate memory aids for the current vocabulary word:
@@ -886,7 +901,10 @@ def analyze_text_content(text: str):
 
 
 def save_analysis_as_package(name: str, text: str):
-    """Save analyzed content as a vocabulary package."""
+    """Save analyzed content as a vocabulary package.
+
+    Uses LLM to verify words, filter out names/stop words, and get correct base forms.
+    """
     if not name or not name.strip():
         return "Please enter a name for the package."
 
@@ -900,6 +918,12 @@ def save_analysis_as_package(name: str, text: str):
         if result.new_count == 0:
             return "No new words to save - you already know all the vocabulary!"
 
+        # Process words through LLM to filter names, get base forms, translations
+        processed_words = process_words_with_llm(result.new_words_details, text)
+
+        if not processed_words:
+            return "No vocabulary words remaining after filtering names and stop words."
+
         # Save the package
         package_id = save_content_package(
             name=name.strip(),
@@ -909,13 +933,13 @@ def save_analysis_as_package(name: str, text: str):
             analysis_data={
                 'total_words': result.total_words,
                 'unique_words': result.unique_words,
-                'new_words_count': result.new_count,
+                'new_words_count': len(processed_words),  # Use processed count
                 'comprehension_pct': result.comprehension_pct,
                 'difficulty_level': result.difficulty_label
             }
         )
 
-        # Add vocabulary to package
+        # Add vocabulary to package (using LLM-processed words)
         words_data = [
             {
                 'spanish': w.spanish,
@@ -924,11 +948,11 @@ def save_analysis_as_package(name: str, text: str):
                 'cefr_level': w.cefr_level,
                 'context_sentence': w.context_sentences[0] if w.context_sentences else ''
             }
-            for w in result.new_words_details
+            for w in processed_words
         ]
         add_package_vocabulary(package_id, words_data)
 
-        return f"✅ Saved package '{name}' with {result.new_count} new words!"
+        return f"✅ Saved package '{name}' with {len(processed_words)} words (LLM verified)!"
 
     except Exception as e:
         return f"Error saving package: {str(e)}"
@@ -969,9 +993,18 @@ def add_words_from_package(package_selection):
 
     try:
         package_id = package_selection  # This is the ID from the dropdown value
-        count = add_package_words_to_vocabulary(package_id)
-        # Refresh the dropdown choices after adding
-        return f"✅ Added {count} new words to your vocabulary!", gr.update(choices=get_package_choices())
+        added, skipped_count, skipped = add_package_words_to_vocabulary(package_id)
+
+        # Build status message
+        msg = f"✅ Added {added} new words to your vocabulary!"
+        if skipped_count > 0:
+            msg += f"\n⚠️ Skipped {skipped_count} words (quality check failed):"
+            for word, reason in skipped[:5]:  # Show first 5
+                msg += f"\n  - {word}: {reason}"
+            if skipped_count > 5:
+                msg += f"\n  ... and {skipped_count - 5} more"
+
+        return msg, gr.update(choices=get_package_choices())
     except Exception as e:
         return f"Error adding words: {str(e)}", gr.update()
 
@@ -1207,6 +1240,10 @@ def create_app():
                     btn_easy = gr.Button("Easy (5)", scale=1)
 
                 with gr.Row():
+                    delete_vocab_btn = gr.Button("🗑️ Delete Word", variant="stop", scale=1)
+                    delete_status = gr.Textbox(label="", interactive=False, scale=2, visible=True)
+
+                with gr.Row():
                     lookup_word = gr.Textbox(label="Look up word", scale=3)
                     lookup_btn = gr.Button("Explain", scale=1)
                 lookup_result = gr.Textbox(label="Explanation", lines=3)
@@ -1249,6 +1286,11 @@ def create_app():
                     lambda vid: submit_vocab_review(vid, 5),
                     inputs=[vocab_id],
                     outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example, vocab_audio]
+                )
+                delete_vocab_btn.click(
+                    delete_current_vocab,
+                    inputs=[vocab_id],
+                    outputs=[delete_status, vocab_spanish, vocab_english, vocab_id, vocab_example, vocab_audio]
                 )
                 lookup_btn.click(
                     get_vocab_help,
