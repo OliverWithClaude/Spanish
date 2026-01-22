@@ -79,6 +79,14 @@ from src.dele_tracker import (
     add_missing_dele_vocabulary,
     get_dele_vocabulary_summary
 )
+from src.content_sources import (
+    extract_content,
+    extract_youtube_transcript,
+    fetch_website_content,
+    extract_text_from_file,
+    detect_source_type,
+    ContentResult
+)
 
 # Initialize database and content
 init_database()
@@ -909,6 +917,57 @@ def analyze_text_content(text: str):
         return f"Error analyzing text: {str(e)}", "", "", gr.update(visible=False), ""
 
 
+def extract_and_analyze_content(source_type: str, url_input: str, file_obj, text_input: str):
+    """Extract content from various sources and analyze it."""
+    # Determine source and extract content
+    if source_type == "YouTube URL":
+        if not url_input or not url_input.strip():
+            return "Please enter a YouTube URL.", "", "", gr.update(visible=False), "", ""
+        result = extract_youtube_transcript(url_input.strip())
+    elif source_type == "Website URL":
+        if not url_input or not url_input.strip():
+            return "Please enter a website URL.", "", "", gr.update(visible=False), "", ""
+        result = fetch_website_content(url_input.strip())
+    elif source_type == "Upload File":
+        if file_obj is None:
+            return "Please upload a file (TXT, SRT, or PDF).", "", "", gr.update(visible=False), "", ""
+        result = extract_text_from_file(file_obj.name)
+    else:  # Paste Text
+        if not text_input or not text_input.strip():
+            return "Please enter some Spanish text.", "", "", gr.update(visible=False), "", ""
+        # For pasted text, we just use it directly
+        return analyze_text_content(text_input.strip()) + ("",)
+
+    # Check for extraction errors
+    if result.error:
+        return f"**Error:** {result.error}", "", "", gr.update(visible=False), "", ""
+
+    if not result.text:
+        return "Could not extract any text from this source.", "", "", gr.update(visible=False), "", ""
+
+    # Build source info
+    source_info = f"**Source:** {result.title}"
+    if result.source_url:
+        source_info += f" ([link]({result.source_url}))"
+    if result.duration_seconds:
+        minutes = result.duration_seconds // 60
+        seconds = result.duration_seconds % 60
+        source_info += f" | Duration: {minutes}:{seconds:02d}"
+    source_info += f"\n\n**Extracted {len(result.text)} characters**"
+
+    # Analyze the extracted text
+    analysis_result = analyze_text_content(result.text)
+
+    # Prepend source info to the analysis summary
+    if analysis_result[0]:
+        updated_summary = f"{source_info}\n\n---\n\n{analysis_result[0]}"
+    else:
+        updated_summary = source_info
+
+    return (updated_summary, analysis_result[1], analysis_result[2],
+            analysis_result[3], analysis_result[4], result.text[:500] + "..." if len(result.text) > 500 else result.text)
+
+
 def save_analysis_as_package(name: str, text: str):
     """Save analyzed content as a vocabulary package.
 
@@ -1395,22 +1454,55 @@ Go to the **Vocabulary** tab to start learning these words!"""
             # ============ Content Discovery Tab ============
             with gr.Tab("🔍 Discover"):
                 gr.Markdown("""## Discover Content
-Analyze Spanish text to find new vocabulary. Paste any Spanish text below to see which words you know and which ones to learn.
+Import Spanish content from YouTube videos, websites, files, or paste text directly. Analyze to find new vocabulary and track your comprehension.
                 """)
 
                 with gr.Row():
                     with gr.Column(scale=2):
+                        # Source type selector
+                        source_type = gr.Radio(
+                            choices=["Paste Text", "YouTube URL", "Website URL", "Upload File"],
+                            value="Paste Text",
+                            label="Content Source",
+                            interactive=True
+                        )
+
+                        # URL input (for YouTube and Website)
+                        url_input = gr.Textbox(
+                            label="URL",
+                            placeholder="Enter YouTube or website URL",
+                            visible=False
+                        )
+
+                        # File upload (for files)
+                        file_input = gr.File(
+                            label="Upload File (TXT, SRT, or PDF)",
+                            file_types=[".txt", ".srt", ".pdf"],
+                            visible=False
+                        )
+
+                        # Text input (for pasting)
                         content_input = gr.Textbox(
                             label="Spanish Text",
                             placeholder="Paste Spanish text here (from articles, books, subtitles, etc.)",
-                            lines=8
+                            lines=8,
+                            visible=True
                         )
+
                         with gr.Row():
-                            analyze_btn = gr.Button("🔍 Analyze Text", variant="primary", scale=2)
+                            analyze_btn = gr.Button("🔍 Analyze Content", variant="primary", scale=2)
                             clear_btn = gr.Button("🗑️ Clear", scale=1)
 
                     with gr.Column(scale=1):
                         analysis_summary = gr.Markdown(label="Analysis")
+
+                # Preview of extracted content
+                extracted_preview = gr.Textbox(
+                    label="Extracted Content Preview",
+                    lines=3,
+                    interactive=False,
+                    visible=False
+                )
 
                 with gr.Row():
                     with gr.Column():
@@ -1428,16 +1520,52 @@ Analyze Spanish text to find new vocabulary. Paste any Spanish text below to see
                 # Hidden state to store the analyzed text
                 analyzed_text_state = gr.State("")
 
-                # Event handlers
-                analyze_btn.click(
-                    analyze_text_content,
-                    inputs=[content_input],
-                    outputs=[analysis_summary, new_words_display, priority_words_display, save_row, analyzed_text_state]
+                # Function to show/hide inputs based on source type
+                def update_input_visibility(selected_source):
+                    return {
+                        url_input: gr.update(visible=selected_source in ["YouTube URL", "Website URL"]),
+                        file_input: gr.update(visible=selected_source == "Upload File"),
+                        content_input: gr.update(visible=selected_source == "Paste Text"),
+                    }
+
+                source_type.change(
+                    update_input_visibility,
+                    inputs=[source_type],
+                    outputs=[url_input, file_input, content_input]
                 )
 
+                # Main analysis handler
+                def analyze_from_source(source, url, file_obj, text):
+                    results = extract_and_analyze_content(source, url, file_obj, text)
+                    # Show preview only if we extracted from a source (not pasted text)
+                    show_preview = source != "Paste Text" and len(results) > 5 and results[5]
+                    return results[:5] + (gr.update(visible=show_preview, value=results[5] if show_preview else ""),)
+
+                analyze_btn.click(
+                    analyze_from_source,
+                    inputs=[source_type, url_input, file_input, content_input],
+                    outputs=[analysis_summary, new_words_display, priority_words_display, save_row, analyzed_text_state, extracted_preview]
+                )
+
+                def clear_all():
+                    return (
+                        "Paste Text",  # source_type
+                        gr.update(value="", visible=False),  # url_input
+                        gr.update(value=None, visible=False),  # file_input
+                        gr.update(value="", visible=True),  # content_input
+                        "",  # analysis_summary
+                        "",  # new_words_display
+                        "",  # priority_words_display
+                        gr.update(visible=False),  # save_row
+                        "",  # save_status
+                        gr.update(visible=False, value=""),  # extracted_preview
+                    )
+
                 clear_btn.click(
-                    lambda: ("", "", "", "", gr.update(visible=False), ""),
-                    outputs=[content_input, analysis_summary, new_words_display, priority_words_display, save_row, save_status]
+                    clear_all,
+                    outputs=[source_type, url_input, file_input, content_input, analysis_summary,
+                             new_words_display, priority_words_display, save_row, save_status,
+                             extracted_preview]
                 )
 
                 save_package_btn.click(
