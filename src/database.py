@@ -194,6 +194,55 @@ def init_database():
         )
     """)
 
+    # ============ Content Discovery Tables ============
+
+    # Content packages (imported content for vocabulary learning)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS content_packages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            source_type TEXT,
+            source_url TEXT,
+            source_text TEXT,
+            total_words INTEGER,
+            unique_words INTEGER,
+            new_words_count INTEGER,
+            comprehension_pct REAL,
+            difficulty_level TEXT,
+            is_completed BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    # source_type: 'text', 'youtube', 'website', 'file', 'podcast'
+
+    # Vocabulary within content packages
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS package_vocabulary (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            package_id INTEGER NOT NULL,
+            spanish TEXT NOT NULL,
+            english TEXT,
+            frequency_rank INTEGER,
+            cefr_level TEXT,
+            context_sentence TEXT,
+            added_to_vocabulary BOOLEAN DEFAULT FALSE,
+            FOREIGN KEY (package_id) REFERENCES content_packages(id)
+        )
+    """)
+
+    # Input tracking (listening hours, etc.)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS input_tracking (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date DATE NOT NULL,
+            source_type TEXT,
+            source_name TEXT,
+            duration_minutes INTEGER,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
 
     # Initialize user progress if not exists
@@ -1203,6 +1252,286 @@ def set_setting(key: str, value: str):
     """, (key, value))
     conn.commit()
     conn.close()
+
+
+# ============ Content Package Functions ============
+
+def save_content_package(name: str, source_type: str, source_url: str,
+                         source_text: str, analysis_data: dict) -> int:
+    """
+    Save a content package from analyzed content.
+
+    Args:
+        name: Name for the package
+        source_type: 'text', 'youtube', 'website', 'file'
+        source_url: Original URL if applicable
+        source_text: The analyzed text
+        analysis_data: Dict with total_words, unique_words, new_words_count, comprehension_pct
+
+    Returns:
+        Package ID
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO content_packages
+        (name, source_type, source_url, source_text, total_words, unique_words,
+         new_words_count, comprehension_pct, difficulty_level)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        name,
+        source_type,
+        source_url,
+        source_text,
+        analysis_data.get('total_words', 0),
+        analysis_data.get('unique_words', 0),
+        analysis_data.get('new_words_count', 0),
+        analysis_data.get('comprehension_pct', 0),
+        analysis_data.get('difficulty_level', 'Unknown')
+    ))
+
+    package_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return package_id
+
+
+def add_package_vocabulary(package_id: int, words: list):
+    """
+    Add vocabulary words to a content package.
+
+    Args:
+        package_id: ID of the package
+        words: List of dicts with spanish, english, frequency_rank, cefr_level, context_sentence
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    for word in words:
+        cursor.execute("""
+            INSERT INTO package_vocabulary
+            (package_id, spanish, english, frequency_rank, cefr_level, context_sentence)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            package_id,
+            word.get('spanish', ''),
+            word.get('english', ''),
+            word.get('frequency_rank', 99999),
+            word.get('cefr_level', 'B1'),
+            word.get('context_sentence', '')
+        ))
+
+    conn.commit()
+    conn.close()
+
+
+def get_content_packages(limit: int = 20) -> list:
+    """Get all content packages, most recent first."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT cp.*,
+            (SELECT COUNT(*) FROM package_vocabulary WHERE package_id = cp.id) as word_count,
+            (SELECT COUNT(*) FROM package_vocabulary WHERE package_id = cp.id AND added_to_vocabulary = 1) as words_added
+        FROM content_packages cp
+        ORDER BY created_at DESC
+        LIMIT ?
+    """, (limit,))
+
+    results = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return results
+
+
+def get_package_vocabulary(package_id: int) -> list:
+    """Get vocabulary words in a content package."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT * FROM package_vocabulary
+        WHERE package_id = ?
+        ORDER BY frequency_rank ASC
+    """, (package_id,))
+
+    results = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return results
+
+
+def add_package_words_to_vocabulary(package_id: int, word_ids: list = None):
+    """
+    Add words from a package to the main vocabulary.
+
+    Args:
+        package_id: ID of the package
+        word_ids: Optional list of specific word IDs to add. If None, adds all.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get words to add
+    if word_ids:
+        placeholders = ','.join('?' * len(word_ids))
+        cursor.execute(f"""
+            SELECT * FROM package_vocabulary
+            WHERE package_id = ? AND id IN ({placeholders}) AND added_to_vocabulary = 0
+        """, [package_id] + word_ids)
+    else:
+        cursor.execute("""
+            SELECT * FROM package_vocabulary
+            WHERE package_id = ? AND added_to_vocabulary = 0
+        """, (package_id,))
+
+    words_to_add = cursor.fetchall()
+
+    for word in words_to_add:
+        # Check if word already exists in vocabulary
+        cursor.execute("SELECT id FROM vocabulary WHERE LOWER(spanish) = ?",
+                      (word['spanish'].lower(),))
+        existing = cursor.fetchone()
+
+        if not existing:
+            # Add to vocabulary
+            cursor.execute("""
+                INSERT INTO vocabulary (spanish, english, category, cefr_level, example_sentence)
+                VALUES (?, ?, 'imported', ?, ?)
+            """, (word['spanish'], word['english'], word['cefr_level'], word['context_sentence']))
+
+            vocab_id = cursor.lastrowid
+
+            # Initialize progress tracking
+            cursor.execute("""
+                INSERT INTO vocabulary_progress (vocabulary_id, next_review, status)
+                VALUES (?, ?, 'new')
+            """, (vocab_id, datetime.now().isoformat()))
+
+        # Mark as added in package
+        cursor.execute("""
+            UPDATE package_vocabulary SET added_to_vocabulary = 1 WHERE id = ?
+        """, (word['id'],))
+
+    conn.commit()
+    conn.close()
+
+    return len(words_to_add)
+
+
+def delete_content_package(package_id: int):
+    """Delete a content package and its vocabulary."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM package_vocabulary WHERE package_id = ?", (package_id,))
+    cursor.execute("DELETE FROM content_packages WHERE id = ?", (package_id,))
+
+    conn.commit()
+    conn.close()
+
+
+def fix_missing_translations():
+    """
+    Update vocabulary words that have empty translations by looking up
+    the lemmatized form in frequency data.
+    """
+    from src.frequency_data import get_translation
+    from src.content_analysis import lemmatize_spanish
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Find words with empty or null translations
+    cursor.execute("""
+        SELECT id, spanish FROM vocabulary
+        WHERE english IS NULL OR english = ''
+    """)
+    words_to_fix = cursor.fetchall()
+
+    fixed_count = 0
+    for word in words_to_fix:
+        spanish = word['spanish']
+        # Try original word first
+        translation = get_translation(spanish)
+        if not translation:
+            # Try lemmatized form
+            lemma = lemmatize_spanish(spanish)
+            translation = get_translation(lemma)
+
+        if translation:
+            cursor.execute("""
+                UPDATE vocabulary SET english = ? WHERE id = ?
+            """, (translation, word['id']))
+            fixed_count += 1
+
+    conn.commit()
+    conn.close()
+
+    return fixed_count
+
+
+def track_input_time(source_type: str, source_name: str, duration_minutes: int, notes: str = None):
+    """
+    Track listening/input time for comprehensible input.
+
+    Args:
+        source_type: 'youtube', 'podcast', 'conversation', 'reading'
+        source_name: Name/title of the content
+        duration_minutes: How long in minutes
+        notes: Optional notes
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO input_tracking (date, source_type, source_name, duration_minutes, notes)
+        VALUES (?, ?, ?, ?, ?)
+    """, (datetime.now().date().isoformat(), source_type, source_name, duration_minutes, notes))
+
+    conn.commit()
+    conn.close()
+
+
+def get_input_stats() -> dict:
+    """Get statistics on comprehensible input time."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    stats = {}
+
+    # Total hours
+    cursor.execute("SELECT SUM(duration_minutes) FROM input_tracking")
+    total_minutes = cursor.fetchone()[0] or 0
+    stats['total_hours'] = round(total_minutes / 60, 1)
+
+    # By source type
+    cursor.execute("""
+        SELECT source_type, SUM(duration_minutes) as minutes
+        FROM input_tracking
+        GROUP BY source_type
+    """)
+    stats['by_source'] = {row['source_type']: round(row['minutes'] / 60, 1)
+                          for row in cursor.fetchall()}
+
+    # This week
+    cursor.execute("""
+        SELECT SUM(duration_minutes) FROM input_tracking
+        WHERE date >= date('now', '-7 days')
+    """)
+    weekly_minutes = cursor.fetchone()[0] or 0
+    stats['weekly_hours'] = round(weekly_minutes / 60, 1)
+
+    # This month
+    cursor.execute("""
+        SELECT SUM(duration_minutes) FROM input_tracking
+        WHERE date >= date('now', '-30 days')
+    """)
+    monthly_minutes = cursor.fetchone()[0] or 0
+    stats['monthly_hours'] = round(monthly_minutes / 60, 1)
+
+    conn.close()
+    return stats
 
 
 if __name__ == "__main__":

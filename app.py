@@ -55,9 +55,20 @@ from src.database import (
     introduce_new_words,
     get_connection,
     add_practice_time,
-    reset_practice_time
+    reset_practice_time,
+    save_content_package,
+    add_package_vocabulary,
+    get_content_packages,
+    get_package_vocabulary,
+    add_package_words_to_vocabulary,
+    fix_missing_translations
 )
 from src.content import populate_database
+from src.content_analysis import (
+    analyze_content,
+    get_comprehension_recommendation,
+    ContentAnalysis
+)
 
 # Initialize database and content
 init_database()
@@ -811,6 +822,160 @@ Keep practicing daily for best results!
 """
 
 
+# ============ Content Analysis Functions ============
+
+def analyze_text_content(text: str):
+    """Analyze Spanish text and return results for display."""
+    if not text or not text.strip():
+        return "Please enter some Spanish text to analyze.", "", "", gr.update(visible=False), ""
+
+    try:
+        result = analyze_content(text)
+
+        # Build summary display
+        summary = f"""## Analysis Results
+
+| Metric | Value |
+|--------|-------|
+| **Total Words** | {result.total_words} |
+| **Unique Words** | {result.unique_words} |
+| **Words You Know** | {result.known_count} |
+| **Words Learning** | {result.learning_count} |
+| **New Words** | {result.new_count} |
+| **Comprehension** | {result.comprehension_pct:.1f}% |
+| **Difficulty** | {result.difficulty_label} |
+
+### Recommendation
+{get_comprehension_recommendation(result)}
+"""
+
+        # Build new words display
+        if result.new_words_details:
+            new_words_md = "## New Words to Learn\n\n"
+            new_words_md += "| Word | Translation | Level | Frequency | DELE A2 |\n"
+            new_words_md += "|------|-------------|-------|-----------|--------|\n"
+
+            for word in result.new_words_details[:30]:  # Limit to 30 words
+                dele_marker = "✅" if word.in_dele_a2 else ""
+                freq_label = "⭐" if word.frequency_rank <= 1500 else ""
+                translation = word.english or "—"
+                new_words_md += f"| {word.spanish} | {translation} | {word.cefr_level} | {freq_label} {word.frequency_rank} | {dele_marker} |\n"
+
+            if len(result.new_words_details) > 30:
+                new_words_md += f"\n*...and {len(result.new_words_details) - 30} more words*"
+        else:
+            new_words_md = "**Great!** You know all the words in this text!"
+
+        # High value words (top frequency to prioritize)
+        high_value = result.high_value_words
+        if high_value:
+            priority_md = f"### Priority Words ({len(high_value)} high-frequency)\n"
+            priority_md += "These words appear in the top 1500 most common Spanish words:\n\n"
+            priority_words = [f"**{w.spanish}** ({w.english or '?'})" for w in high_value[:10]]
+            priority_md += ", ".join(priority_words)
+        else:
+            priority_md = ""
+
+        # Show save button if there are new words
+        show_save = len(result.new_words_details) > 0
+
+        return summary, new_words_md, priority_md, gr.update(visible=show_save), text
+
+    except Exception as e:
+        return f"Error analyzing text: {str(e)}", "", "", gr.update(visible=False), ""
+
+
+def save_analysis_as_package(name: str, text: str):
+    """Save analyzed content as a vocabulary package."""
+    if not name or not name.strip():
+        return "Please enter a name for the package."
+
+    if not text or not text.strip():
+        return "No text to save. Please analyze some content first."
+
+    try:
+        # Re-analyze to get current results
+        result = analyze_content(text)
+
+        if result.new_count == 0:
+            return "No new words to save - you already know all the vocabulary!"
+
+        # Save the package
+        package_id = save_content_package(
+            name=name.strip(),
+            source_type='text',
+            source_url='',
+            source_text=text,
+            analysis_data={
+                'total_words': result.total_words,
+                'unique_words': result.unique_words,
+                'new_words_count': result.new_count,
+                'comprehension_pct': result.comprehension_pct,
+                'difficulty_level': result.difficulty_label
+            }
+        )
+
+        # Add vocabulary to package
+        words_data = [
+            {
+                'spanish': w.spanish,
+                'english': w.english or '',
+                'frequency_rank': w.frequency_rank,
+                'cefr_level': w.cefr_level,
+                'context_sentence': w.context_sentences[0] if w.context_sentences else ''
+            }
+            for w in result.new_words_details
+        ]
+        add_package_vocabulary(package_id, words_data)
+
+        return f"✅ Saved package '{name}' with {result.new_count} new words!"
+
+    except Exception as e:
+        return f"Error saving package: {str(e)}"
+
+
+def get_packages_display():
+    """Get display of saved content packages."""
+    packages = get_content_packages(limit=10)
+
+    if not packages:
+        return "No content packages saved yet. Analyze some text and save it to create your first package!"
+
+    md = "## Your Content Packages\n\n"
+    md += "| Name | New Words | Comprehension | Created |\n"
+    md += "|------|-----------|---------------|--------|\n"
+
+    for pkg in packages:
+        new_words = pkg.get('new_words_count', 0)
+        comp_pct = pkg.get('comprehension_pct', 0)
+        created = pkg.get('created_at', '')[:10]  # Just the date
+        md += f"| {pkg['name']} | {new_words} | {comp_pct:.0f}% | {created} |\n"
+
+    return md
+
+
+def get_package_choices():
+    """Get packages as dropdown choices."""
+    packages = get_content_packages()
+    if not packages:
+        return []
+    return [(f"{pkg['name']} ({pkg.get('new_words_count', 0)} new words)", pkg['id']) for pkg in packages]
+
+
+def add_words_from_package(package_selection):
+    """Add all words from a package to vocabulary."""
+    if not package_selection:
+        return "Please select a package first.", gr.update(choices=get_package_choices())
+
+    try:
+        package_id = package_selection  # This is the ID from the dropdown value
+        count = add_package_words_to_vocabulary(package_id)
+        # Refresh the dropdown choices after adding
+        return f"✅ Added {count} new words to your vocabulary!", gr.update(choices=get_package_choices())
+    except Exception as e:
+        return f"Error adding words: {str(e)}", gr.update()
+
+
 # ============ Build Gradio Interface ============
 
 def create_app():
@@ -1111,6 +1276,93 @@ def create_app():
                 refresh_stats_btn.click(get_stats_display, outputs=[stats_display])
                 app.load(get_stats_display, outputs=[stats_display])
 
+            # ============ Content Discovery Tab ============
+            with gr.Tab("🔍 Discover"):
+                gr.Markdown("""## Discover Content
+Analyze Spanish text to find new vocabulary. Paste any Spanish text below to see which words you know and which ones to learn.
+                """)
+
+                with gr.Row():
+                    with gr.Column(scale=2):
+                        content_input = gr.Textbox(
+                            label="Spanish Text",
+                            placeholder="Paste Spanish text here (from articles, books, subtitles, etc.)",
+                            lines=8
+                        )
+                        with gr.Row():
+                            analyze_btn = gr.Button("🔍 Analyze Text", variant="primary", scale=2)
+                            clear_btn = gr.Button("🗑️ Clear", scale=1)
+
+                    with gr.Column(scale=1):
+                        analysis_summary = gr.Markdown(label="Analysis")
+
+                with gr.Row():
+                    with gr.Column():
+                        new_words_display = gr.Markdown()
+
+                with gr.Row():
+                    priority_words_display = gr.Markdown()
+
+                with gr.Row(visible=False) as save_row:
+                    package_name = gr.Textbox(label="Package Name", placeholder="e.g., News Article, Movie Scene")
+                    save_package_btn = gr.Button("💾 Save as Package", variant="secondary")
+
+                save_status = gr.Markdown()
+
+                # Hidden state to store the analyzed text
+                analyzed_text_state = gr.State("")
+
+                # Event handlers
+                analyze_btn.click(
+                    analyze_text_content,
+                    inputs=[content_input],
+                    outputs=[analysis_summary, new_words_display, priority_words_display, save_row, analyzed_text_state]
+                )
+
+                clear_btn.click(
+                    lambda: ("", "", "", "", gr.update(visible=False), ""),
+                    outputs=[content_input, analysis_summary, new_words_display, priority_words_display, save_row, save_status]
+                )
+
+                save_package_btn.click(
+                    save_analysis_as_package,
+                    inputs=[package_name, analyzed_text_state],
+                    outputs=[save_status]
+                )
+
+                gr.Markdown("---")
+                gr.Markdown("### Your Saved Packages")
+                packages_display = gr.Markdown()
+
+                with gr.Row():
+                    package_selector = gr.Dropdown(
+                        label="Select a package to add words",
+                        choices=[],
+                        interactive=True,
+                        scale=3
+                    )
+                    add_words_btn = gr.Button("➕ Add Words to Vocabulary", variant="primary", scale=1)
+
+                add_words_status = gr.Markdown()
+                refresh_packages_btn = gr.Button("🔄 Refresh Packages")
+
+                # Event handlers for packages
+                refresh_packages_btn.click(get_packages_display, outputs=[packages_display])
+                refresh_packages_btn.click(lambda: gr.update(choices=get_package_choices()), outputs=[package_selector])
+                add_words_btn.click(
+                    add_words_from_package,
+                    inputs=[package_selector],
+                    outputs=[add_words_status, package_selector]
+                )
+
+                # Also refresh after saving a package
+                save_package_btn.click(get_packages_display, outputs=[packages_display])
+                save_package_btn.click(lambda: gr.update(choices=get_package_choices()), outputs=[package_selector])
+
+                # Load on startup
+                app.load(get_packages_display, outputs=[packages_display])
+                app.load(lambda: gr.update(choices=get_package_choices()), outputs=[package_selector])
+
             # ============ Help Tab ============
             with gr.Tab("❓ Help"):
                 gr.Markdown("""
@@ -1233,6 +1485,12 @@ The gap between "Learning" and "Learned" will close as you **consistently review
 if __name__ == "__main__":
     import sys
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 7860
+
+    # Fix any vocabulary words with missing translations
+    fixed = fix_missing_translations()
+    if fixed > 0:
+        print(f"Fixed {fixed} vocabulary words with missing translations")
+
     app = create_app()
     app.launch(
         server_name="127.0.0.1",
