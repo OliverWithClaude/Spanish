@@ -72,48 +72,16 @@ def extract_youtube_transcript(url: str, language: str = 'es') -> ContentResult:
         )
 
     try:
-        # Try to get Spanish transcript first
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        # Create API instance (v1.x API)
+        ytt_api = YouTubeTranscriptApi()
 
-        transcript = None
-        # Try Spanish variants
-        for lang in ['es', 'es-ES', 'es-MX', 'es-419']:
-            try:
-                transcript = transcript_list.find_transcript([lang])
-                break
-            except NoTranscriptFound:
-                continue
+        # Try Spanish variants first, then fall back to English
+        languages_to_try = ['es', 'es-ES', 'es-MX', 'es-419', 'en']
 
-        # If no Spanish transcript, try auto-generated
-        if transcript is None:
-            try:
-                transcript = transcript_list.find_generated_transcript(['es'])
-            except NoTranscriptFound:
-                pass
+        transcript = ytt_api.fetch(video_id, languages=languages_to_try)
 
-        # Last resort: get any transcript and translate
-        if transcript is None:
-            try:
-                # Get first available transcript
-                for t in transcript_list:
-                    transcript = t
-                    break
-                if transcript and transcript.language_code != 'es':
-                    transcript = transcript.translate('es')
-            except Exception:
-                pass
-
-        if transcript is None:
-            return ContentResult(
-                text="",
-                title="",
-                source_type="youtube",
-                source_url=url,
-                error="No Spanish transcript available for this video."
-            )
-
-        # Fetch the transcript
-        transcript_data = transcript.fetch()
+        # Convert to raw data format (list of dicts with 'text', 'start', 'duration')
+        transcript_data = transcript.to_raw_data()
 
         # Combine all text segments
         full_text = ' '.join([entry['text'] for entry in transcript_data])
@@ -140,6 +108,14 @@ def extract_youtube_transcript(url: str, language: str = 'es') -> ContentResult:
             source_type="youtube",
             source_url=url,
             error="Transcripts are disabled for this video."
+        )
+    except NoTranscriptFound:
+        return ContentResult(
+            text="",
+            title="",
+            source_type="youtube",
+            source_url=url,
+            error="No transcript available for this video in Spanish or English."
         )
     except VideoUnavailable:
         return ContentResult(
