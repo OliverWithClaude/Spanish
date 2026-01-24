@@ -1748,6 +1748,99 @@ If you see:
 The gap between "Learning" and "Learned" will close as you **consistently review over time**.
 """)
 
+            # ============ Links Tab ============
+            with gr.Tab("🔗 Links"):
+                gr.Markdown("## 📚 Spanish Learning Resources")
+                gr.Markdown("Curated links to excellent Spanish learning materials that complement HablaConmigo.")
+
+                # Resource 1: Small Town Spanish Teacher
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.HTML("""
+                        <div style="text-align: center; padding: 20px;">
+                            <div style="font-size: 120px; line-height: 1;">🐘</div>
+                        </div>
+                        """)
+                    with gr.Column(scale=3):
+                        gr.Markdown("""
+### Small Town Spanish Teacher - Simple Stories
+
+**Perfect for:** Content Discovery & Comprehensible Input
+
+The stories start with a friendly elephant character and progress in difficulty. These are **ideal for copying into the Discover module** to:
+- Build vocabulary from context
+- Practice reading comprehension
+- Find new words at your level
+- Analyze authentic Spanish text
+
+**How to use:**
+1. Visit the page and find a story at your level
+2. Copy the Spanish text
+3. Go to HablaConmigo's **Discover** tab
+4. Paste the text and click "Analyze Content"
+5. Save as a package and add words to your vocabulary
+
+[📖 Open Simple Stories →](https://smalltownspanishteacher.com/simple-stories-in-spanish-all-episodes/){:target="_blank"}
+                        """)
+                        gr.HTML('<a href="https://smalltownspanishteacher.com/simple-stories-in-spanish-all-episodes/" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">📖 Visit Simple Stories</a>')
+
+                gr.Markdown("---")
+
+                # Resource 2: Dreaming Spanish
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.HTML("""
+                        <div style="text-align: center; padding: 20px;">
+                            <div style="font-size: 120px; line-height: 1;">💭</div>
+                            <div style="font-size: 40px; margin-top: 10px;">🇪🇸</div>
+                        </div>
+                        """)
+                    with gr.Column(scale=3):
+                        gr.Markdown("""
+### Dreaming Spanish - Video Platform
+
+**Perfect for:** Immersive Listening & Comprehensible Input
+
+Hundreds of videos in **easy and intermediate Spanish** with visual context. The platform is designed for language acquisition through comprehensible input.
+
+**Recommended practice:**
+- Watch **15 minutes daily** for "learning while you dream" experience
+- Start with Superbeginner videos (lots of visual support)
+- Progress to Beginner, then Intermediate
+- No subtitles needed - learn from context!
+
+**Why it works:**
+The method focuses on understanding meaning through context, not translation. Combined with HablaConmigo's active practice, this passive listening accelerates your comprehension.
+
+[🎥 Browse Videos →](https://app.dreaming.com/spanish/browse){:target="_blank"}
+                        """)
+                        gr.HTML('<a href="https://app.dreaming.com/spanish/browse" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #7c3aed; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">🎥 Open Dreaming Spanish</a>')
+
+                gr.Markdown("---")
+
+                gr.Markdown("""
+### 💡 How to Use These Resources Together
+
+**Daily Routine Suggestion:**
+1. **Morning (5 min):** Review due vocabulary in HablaConmigo
+2. **Mid-day (15 min):** Watch one Dreaming Spanish video
+3. **Evening (10 min):** Read a Simple Story, discover new words in HablaConmigo
+4. **Before bed (5 min):** Quick speaking practice or conversation
+
+**Content Discovery Workflow:**
+1. Find interesting content (stories, video transcripts, articles)
+2. Copy Spanish text into HablaConmigo's Discover tab
+3. Analyze to see which words you know vs. need to learn
+4. Save as package and add new words to vocabulary
+5. Practice those words with spaced repetition
+
+This combination gives you:
+- 📖 **Reading input** (stories)
+- 👂 **Listening input** (videos)
+- 🗣️ **Speaking output** (HablaConmigo)
+- 💪 **Active practice** (vocabulary drills)
+                """)
+
 
     return app
 

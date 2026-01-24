@@ -64,6 +64,12 @@ AI-powered Spanish learning application focused on **speaking and listening skil
 - Practice sessions and accuracy stats
 - Vocabulary due for review
 
+### Learning Resources (Links Tab)
+- **Small Town Spanish Teacher** - Simple stories perfect for the Discover module
+- **Dreaming Spanish** - Hundreds of videos in easy/intermediate Spanish
+- Suggested daily routines combining multiple resources
+- Content discovery workflow guidance
+
 ## Learning Content
 
 | Section | Level | Units | Words |
