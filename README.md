@@ -41,7 +41,8 @@ AI-powered Spanish learning application focused on **speaking and listening skil
 - Word states: New, Learning, Learned, Struggling
 - Auto-play pronunciation on each word
 - Hidden translations for proper recall practice
-- Rate your recall: Again / Hard / Good / Easy
+- **Simplified binary rating**: Known or Again (removed Hard/Good for faster workflow)
+- Compact button layout: Get Word | Known | Reveal | Again | Listen
 - XP rewards for reviews
 - **"Help me remember"** feature:
   - Shows an image from Unsplash (for concrete words like food, objects)
@@ -169,8 +170,8 @@ The app will start at **http://127.0.0.1:7860** (or your specified port)
 ### Vocabulary Review
 1. Click **"Get Word"** - audio plays automatically
 2. Try to recall the English meaning
-3. Click **"Reveal"** to check
-4. Rate how well you remembered (gets next word automatically)
+3. If you know it: Click **"Known"** (gets next word automatically)
+4. If unsure: Click **"Reveal"** to check, then **"Again"** to review later
 
 ## Project Structure
 

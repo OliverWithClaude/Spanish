@@ -1315,10 +1315,13 @@ def create_app():
 
             # ============ Vocabulary Tab ============
             with gr.Tab("📚 Vocabulary"):
+                # Compact action buttons at the top
                 with gr.Row():
-                    get_vocab_btn = gr.Button("Get Word", variant="primary", scale=1)
-                    vocab_audio_btn = gr.Button("🔊 Listen", scale=1)
-                    reveal_btn = gr.Button("👁 Reveal", scale=1)
+                    get_vocab_btn = gr.Button("Get Word", variant="primary", size="sm")
+                    btn_known = gr.Button("✓ Known", variant="secondary", size="sm")
+                    reveal_btn = gr.Button("Reveal", size="sm")
+                    btn_again = gr.Button("Again", variant="stop", size="sm")
+                    vocab_audio_btn = gr.Button("🔊 Listen", size="sm")
 
                 with gr.Row():
                     vocab_spanish = gr.Textbox(label="Spanish", interactive=False, scale=1)
@@ -1338,13 +1341,6 @@ def create_app():
                             memory_sentence_english = gr.Textbox(label="Example English", interactive=False)
                             memory_audio = gr.Audio(label="Listen", type="filepath", autoplay=False)
                             memory_info = gr.Markdown()
-
-                gr.Markdown("**Rate your recall:**")
-                with gr.Row():
-                    btn_again = gr.Button("Again (0)", scale=1)
-                    btn_hard = gr.Button("Hard (2)", scale=1)
-                    btn_good = gr.Button("Good (3)", scale=1)
-                    btn_easy = gr.Button("Easy (5)", scale=1)
 
                 with gr.Row():
                     delete_vocab_btn = gr.Button("🗑️ Delete Word", variant="stop", scale=1)
@@ -1374,23 +1370,13 @@ def create_app():
                     inputs=[vocab_id],
                     outputs=[memory_image, memory_sentence, memory_sentence_english, memory_audio, memory_info]
                 )
+                btn_known.click(
+                    lambda vid: submit_vocab_review(vid, 5),
+                    inputs=[vocab_id],
+                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example, vocab_audio]
+                )
                 btn_again.click(
                     lambda vid: submit_vocab_review(vid, 0),
-                    inputs=[vocab_id],
-                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example, vocab_audio]
-                )
-                btn_hard.click(
-                    lambda vid: submit_vocab_review(vid, 2),
-                    inputs=[vocab_id],
-                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example, vocab_audio]
-                )
-                btn_good.click(
-                    lambda vid: submit_vocab_review(vid, 3),
-                    inputs=[vocab_id],
-                    outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example, vocab_audio]
-                )
-                btn_easy.click(
-                    lambda vid: submit_vocab_review(vid, 5),
                     inputs=[vocab_id],
                     outputs=[vocab_spanish, vocab_english, vocab_id, vocab_example, vocab_audio]
                 )
