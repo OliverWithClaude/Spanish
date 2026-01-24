@@ -858,14 +858,14 @@ def create_learning_path():
     print("Learning path created successfully!")
 
 
-def populate_unit_content(unit_id: int, content: dict, cefr_level: str = 'A1'):
+def populate_unit_content(unit_id: int, content: dict, unit_name: str = None, cefr_level: str = 'A1'):
     """Populate a unit with vocabulary and phrases"""
     # Add vocabulary
     for spanish, english, example in content.get("vocabulary", []):
         add_vocabulary(
             spanish=spanish,
             english=english,
-            category=None,
+            category=unit_name,  # Use unit name as category for better image matching
             example_sentence=example,
             unit_id=unit_id,
             cefr_level=cefr_level
@@ -876,7 +876,7 @@ def populate_unit_content(unit_id: int, content: dict, cefr_level: str = 'A1'):
         add_phrase(
             spanish=spanish,
             english=english,
-            category=None,
+            category=unit_name,  # Use unit name as category
             notes=notes,
             unit_id=unit_id,
             cefr_level=cefr_level
@@ -925,7 +925,7 @@ def populate_database():
         unit_name = unit['name']
         if unit_name in content_mapping:
             content, cefr = content_mapping[unit_name]
-            populate_unit_content(unit['id'], content, cefr)
+            populate_unit_content(unit['id'], content, unit_name, cefr)
             vocab_count = len(content.get('vocabulary', []))
             phrase_count = len(content.get('phrases', []))
             print(f"  - {unit_name}: {vocab_count} words, {phrase_count} phrases")

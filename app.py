@@ -28,7 +28,8 @@ from src.llm import (
     translate_to_english,
     suggest_response,
     generate_memory_sentence,
-    DEFAULT_MODEL
+    DEFAULT_MODEL,
+    FAST_MODEL
 )
 from src.images import get_memory_image, is_imageable
 from src.database import (
@@ -546,8 +547,8 @@ def help_me_remember(vocab_id: int):
     # Generate a memorable sentence
     sentence = generate_memory_sentence(spanish, english)
 
-    # Translate the sentence to English
-    sentence_english = translate_to_english(sentence)
+    # Translate the sentence to English (use FAST_MODEL for speed - simple sentences don't need ACCURATE_MODEL)
+    sentence_english = translate_to_english(sentence, model=FAST_MODEL)
 
     # Generate audio for the sentence
     sentence_audio = text_to_speech(sentence, "female")
@@ -968,7 +969,7 @@ def extract_and_analyze_content(source_type: str, url_input: str, file_obj, text
             analysis_result[3], analysis_result[4], result.text[:500] + "..." if len(result.text) > 500 else result.text)
 
 
-def save_analysis_as_package(name: str, text: str):
+def save_analysis_as_package(name: str, text: str, progress=gr.Progress()):
     """Save analyzed content as a vocabulary package.
 
     Uses LLM to verify words, filter out names/stop words, and get correct base forms.
@@ -981,18 +982,54 @@ def save_analysis_as_package(name: str, text: str):
 
     try:
         # Re-analyze to get current results
+        progress(0, desc="Analyzing content...")
         result = analyze_content(text)
 
         if result.new_count == 0:
             return "No new words to save - you already know all the vocabulary!"
 
+        # Estimate processing time
+        # Word analysis uses TRANSLATE_MODEL (translategemma:4b) - fast and accurate
+        # Approximately 5-10 seconds per batch of 20 words on typical hardware
+        num_words = len(result.new_words_details)
+        batch_size = 20
+        num_batches = (num_words + batch_size - 1) // batch_size
+        estimated_seconds = num_batches * 8  # Average 8 seconds per batch for TranslateGemma 4B
+
+        if estimated_seconds < 60:
+            time_str = f"{int(estimated_seconds)}s"
+        else:
+            minutes = int(estimated_seconds // 60)
+            seconds = int(estimated_seconds % 60)
+            time_str = f"{minutes}m {seconds}s" if seconds > 0 else f"{minutes}m"
+
+        progress(0.1, desc=f"Processing {num_words} words (~{time_str} estimated)...")
+
+        # Create a progress callback that updates Gradio progress
+        def update_progress(current_batch, total_batches, message):
+            # Map batch progress to 0.1-0.9 range (leave 0-0.1 and 0.9-1.0 for other steps)
+            progress_value = 0.1 + (current_batch / total_batches) * 0.8
+            remaining_batches = total_batches - current_batch
+            remaining_seconds = int(remaining_batches * 8)  # 8 seconds per batch (TranslateGemma 4B)
+            if remaining_seconds > 0:
+                if remaining_seconds < 60:
+                    time_remaining = f"{remaining_seconds}s"
+                else:
+                    mins = remaining_seconds // 60
+                    secs = remaining_seconds % 60
+                    time_remaining = f"{mins}m {secs}s" if secs > 0 else f"{mins}m"
+                progress(progress_value, desc=f"Batch {current_batch}/{total_batches} (~{time_remaining} remaining)")
+            else:
+                progress(progress_value, desc=f"Batch {current_batch}/{total_batches} - Almost done!")
+
         # Process words through LLM to filter names, get base forms, translations
-        processed_words = process_words_with_llm(result.new_words_details, text)
+        processed_words = process_words_with_llm(result.new_words_details, text, progress_callback=update_progress)
 
         if not processed_words:
             return "No vocabulary words remaining after filtering names and stop words."
 
         # Save the package
+        progress(0.9, desc="Saving package to database...")
         package_id = save_content_package(
             name=name.strip(),
             source_type='text',
@@ -1008,6 +1045,7 @@ def save_analysis_as_package(name: str, text: str):
         )
 
         # Add vocabulary to package (using LLM-processed words)
+        progress(0.95, desc="Adding vocabulary to package...")
         words_data = [
             {
                 'spanish': w.spanish,
@@ -1020,6 +1058,7 @@ def save_analysis_as_package(name: str, text: str):
         ]
         add_package_vocabulary(package_id, words_data)
 
+        progress(1.0, desc="Complete!")
         return f"✅ Saved package '{name}' with {len(processed_words)} words (LLM verified)!"
 
     except Exception as e:
@@ -1571,7 +1610,8 @@ Import Spanish content from YouTube videos, websites, files, or paste text direc
                 save_package_btn.click(
                     save_analysis_as_package,
                     inputs=[package_name, analyzed_text_state],
-                    outputs=[save_status]
+                    outputs=[save_status],
+                    show_progress="full"
                 )
 
                 gr.Markdown("---")

@@ -8,12 +8,17 @@ import requests
 from typing import Optional, Tuple
 
 # Categories where images make sense (concrete, visual concepts)
+# Note: These are normalized (lowercase, "and" instead of "&") and will be matched fuzzily
 IMAGEABLE_CATEGORIES = {
-    "food & drinks",
+    "food and drinks",
+    "food & drinks",  # Keep both for backwards compatibility
+    "family and people",
     "family & people",
     "office vocabulary",
     "shopping basics",
+    "colors and adjectives",
     "colors & adjectives",
+    "weather and seasons",
     "weather & seasons",
     "at the restaurant",
     "slang",  # Some slang terms may be imageable
@@ -21,11 +26,15 @@ IMAGEABLE_CATEGORIES = {
 
 # Categories that are too abstract for meaningful images
 ABSTRACT_CATEGORIES = {
+    "greetings and introductions",
     "greetings & introductions",
     "numbers 1-100",
     "basic questions",
+    "time and days",
     "time & days",
+    "meetings and schedules",
     "meetings & schedules",
+    "communication and email",
     "communication & email",
     "asking for help",
     "common verbs",
@@ -49,14 +58,19 @@ def is_imageable(category: str) -> bool:
     if not category:
         return False
 
-    category_lower = category.lower().strip()
+    # Normalize: lowercase, strip, and replace ampersand with "and"
+    category_normalized = category.lower().strip().replace(" & ", " and ").replace("&", "and")
+
+    # Also normalize the imageable and abstract sets for comparison
+    imageable_normalized = {cat.replace(" & ", " and ").replace("&", "and") for cat in IMAGEABLE_CATEGORIES}
+    abstract_normalized = {cat.replace(" & ", " and ").replace("&", "and") for cat in ABSTRACT_CATEGORIES}
 
     # Check if it's in our imageable list
-    if category_lower in IMAGEABLE_CATEGORIES:
+    if category_normalized in imageable_normalized:
         return True
 
     # Check if it's explicitly abstract
-    if category_lower in ABSTRACT_CATEGORIES:
+    if category_normalized in abstract_normalized:
         return False
 
     # Default to False for unknown categories

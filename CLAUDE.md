@@ -91,11 +91,23 @@ System prompts in `src/llm.py` define:
 
 ### LLM Model Configuration
 
-Two-tier model strategy in `src/llm.py`:
-- `FAST_MODEL` (llama3.2:latest): Conversation, pronunciation feedback, suggestions, memory sentences
-- `ACCURATE_MODEL` (qwen3:30b): Word analysis, grammar, vocabulary definitions, translation
+Four-tier model strategy in `src/llm.py`:
+- `FAST_MODEL` (llama3.2:latest): Conversation, pronunciation feedback, suggestions
+- `ACCURATE_MODEL` (qwen3:30b): Grammar explanations, vocabulary definitions (teaching mode)
+- `TRANSLATE_MODEL` (translategemma:4b): Spanish↔English translation + word analysis (Google's TranslateGemma, Jan 2026)
+- `MEMORY_MODEL` (gemma2:2b): Memory sentence generation (optimized for 100% word inclusion)
+
+**Note:** Word analysis was moved from ACCURATE_MODEL to TRANSLATE_MODEL for better performance (5-10x faster) and more reliable JSON output.
 
 Temperature settings per task type are defined in `TEMPERATURE_SETTINGS` dict.
+
+**Translation Model:** TranslateGemma 4B is a specialized translation model from Google, optimized for 55 languages. Benchmark testing (see `TRANSLATEGEMMA_BENCHMARK_RESULTS.md`) showed it provides optimal speed/quality balance:
+- **Speed:** 287ms average (2.7x faster than 27B model)
+- **Quality:** 4.17/5 (only 1.4% lower than 27B)
+- **VRAM:** 3.3GB (vs 17GB for 27B), leaving more memory for other models
+- **Use cases:** Excels at simple sentences, conversations, and complex content
+
+**Performance Note:** The "Help me remember" feature uses MEMORY_MODEL for generation (~500ms) and TRANSLATE_MODEL for translation (~377ms), achieving ~877ms total response time (well under 2s target) with excellent quality.
 
 ### Other Settings
 

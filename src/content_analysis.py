@@ -318,14 +318,55 @@ def lemmatize_spanish(word: str) -> str:
         if len(potential_stem) >= 2:
             return potential_stem + 'ar'
     if word.endswith('as') and len(word) > 3:
-        return word[:-2] + 'ar'
+        # Could be verb form (hablas -> hablar) or plural adjective (bajas -> bajo)
+        from src.frequency_data import get_word_data
+
+        # Try plural adjective: bajas -> bajo (via baja)
+        singular_fem = word[:-1]  # Remove 's'
+        singular_masc = word[:-2] + 'o'  # Change 'as' to 'o'
+        adj_data = get_word_data(singular_masc)
+
+        # Try verb: hablas -> hablar
+        verb_form = word[:-2] + 'ar'
+        verb_data = get_word_data(verb_form)
+
+        # If adjective exists and is an adjective, use it
+        if adj_data and adj_data.pos in ('adj', 'adv'):
+            return singular_masc
+        # If only verb exists, use it
+        elif verb_data:
+            return verb_form
+        # If neither, default to verb form (original behavior)
+        else:
+            return verb_form
     if word.endswith('a') and len(word) > 3 and not word.endswith(('ía', 'ea', 'oa')):
-        # Be careful - many nouns end in 'a'
-        # Only lemmatize if there's a matching infinitive in frequency data
-        potential = word[:-1] + 'ar'
-        from src.frequency_data import get_frequency_rank
-        if get_frequency_rank(potential) < 99999:
-            return potential
+        # Could be feminine adjective (baja -> bajo) or verb form (habla -> hablar)
+        # Check adjective form first (more common for words ending in -a)
+        from src.frequency_data import get_frequency_rank, get_word_data
+
+        # Try adjective: change 'a' to 'o' (e.g., baja -> bajo)
+        adj_form = word[:-1] + 'o'
+        adj_data = get_word_data(adj_form)
+
+        # Try verb: change 'a' to 'ar' (e.g., habla -> hablar)
+        verb_form = word[:-1] + 'ar'
+        verb_data = get_word_data(verb_form)
+
+        # If both exist, prefer the more common one
+        if adj_data and verb_data:
+            # Lower rank = more common
+            if adj_data.rank < verb_data.rank:
+                return adj_form
+            else:
+                return verb_form
+        # If only adjective exists, use it
+        elif adj_data and adj_data.pos in ('adj', 'adv'):
+            return adj_form
+        # If only verb exists, use it
+        elif verb_data:
+            return verb_form
+        # If neither exists in our data, keep the word as-is
+        # (likely a noun ending in 'a')
 
     # Common -er/-ir verb patterns
     if word.endswith('iendo'):  # gerund
@@ -652,7 +693,7 @@ def get_comprehension_recommendation(analysis: ContentAnalysis) -> str:
         return f"This content may be too advanced. Consider easier material or learn {high_value} essential words first."
 
 
-def process_words_with_llm(words_details: List[WordInfo], text: str) -> List[WordInfo]:
+def process_words_with_llm(words_details: List[WordInfo], text: str, progress_callback=None) -> List[WordInfo]:
     """
     Process a list of WordInfo through LLM to:
     - Filter out names and stop words
@@ -662,6 +703,7 @@ def process_words_with_llm(words_details: List[WordInfo], text: str) -> List[Wor
     Args:
         words_details: List of WordInfo from analyze_content
         text: Original text (for context in finding sentences)
+        progress_callback: Optional callback(current, total, message) for progress updates
 
     Returns:
         Cleaned list of WordInfo with LLM-verified data
@@ -676,21 +718,34 @@ def process_words_with_llm(words_details: List[WordInfo], text: str) -> List[Wor
 
     # Get LLM analysis
     print(f"Analyzing {len(words_to_analyze)} words with LLM...")
-    llm_results = analyze_words_with_llm(words_to_analyze)
+    llm_results = analyze_words_with_llm(words_to_analyze, progress_callback=progress_callback)
 
-    # Build a map of LLM results
+    # Build a map of LLM results using BOTH string matching and positional matching
+    # This handles encoding corruption where accented characters may not match
     llm_map = {}
-    for result in llm_results:
+    for i, result in enumerate(llm_results):
         spanish = result.get('spanish', '').lower()
         llm_map[spanish] = result
+        # Also store by position for fallback matching
+        llm_map[f'_pos_{i}'] = result
 
     # Process and filter words
     cleaned_words = []
     sentences = extract_sentences(text)
 
-    for word_info in words_details:
+    for i, word_info in enumerate(words_details):
         spanish_lower = word_info.spanish.lower()
-        llm_data = llm_map.get(spanish_lower, {})
+
+        # Try to get LLM data by string match first
+        llm_data = llm_map.get(spanish_lower)
+
+        # If not found (possibly due to encoding issues), try positional match
+        if not llm_data and i < len(llm_results):
+            llm_data = llm_map.get(f'_pos_{i}', {})
+
+        # If still no data, use empty dict
+        if not llm_data:
+            llm_data = {}
 
         # Skip if LLM says to skip (names, stop words, etc.)
         if llm_data.get('skip', False):

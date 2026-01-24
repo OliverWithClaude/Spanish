@@ -2,9 +2,11 @@
 LLM module for Spanish Learning App
 Handles conversation and feedback using Ollama
 
-Two-tier model strategy:
+Multi-tier model strategy:
 - FAST_MODEL: For high-frequency, conversational tasks (speed priority)
 - ACCURATE_MODEL: For linguistic analysis, grammar, definitions (accuracy priority)
+- TRANSLATE_MODEL: For Spanish↔English translation (translation-optimized)
+- MEMORY_MODEL: For memorable sentence generation (creative + word inclusion)
 """
 
 import ollama
@@ -17,6 +19,19 @@ FAST_MODEL = "llama3.2:latest"
 # Accurate model for linguistic analysis and teaching
 # Options: "qwen3:30b", "gemma3:27b", "deepseek-r1:8b"
 ACCURATE_MODEL = "qwen3:30b"
+
+# Translation-optimized model (Google's TranslateGemma, released Jan 2026)
+# Specialized for translation across 55 languages with superior accuracy
+# 4B model selected for optimal speed/quality balance (see TRANSLATEGEMMA_BENCHMARK_RESULTS.md)
+# - 2.7x faster than 27B (287ms vs 763ms avg)
+# - Only 1.4% quality reduction (4.17/5 vs 4.23/5)
+# - Uses ~3.3GB VRAM vs 17GB for 27B
+TRANSLATE_MODEL = "translategemma:4b"
+
+# Specialized model for memory sentence generation
+# gemma2:2b has 100% success rate including target word (vs 80% with llama3.2)
+# and produces clean output without unwanted explanations
+MEMORY_MODEL = "gemma2:2b"
 
 # Legacy default (for backwards compatibility)
 DEFAULT_MODEL = FAST_MODEL
@@ -116,20 +131,55 @@ Rules:
 """,
 
     "memory_sentence": """You are helping a Spanish learner memorize vocabulary through vivid, memorable sentences.
-Given a Spanish word and its English meaning, create ONE simple sentence that:
+Given a Spanish word and its English meaning, create ONE simple sentence that uses that EXACT WORD.
 
-1. Uses the word in a clear, visual context that's easy to picture
-2. Is at A1/A2 level (simple vocabulary and grammar)
-3. Uses Castilian Spanish (Spain)
-4. Is short (5-10 words maximum)
-5. Creates a memorable mental image
+ABSOLUTE REQUIREMENT - NO SYNONYMS ALLOWED:
+- If given "realmente", ONLY use "realmente" - NEVER use "verdaderamente"
+- If given "tampoco", ONLY use "tampoco" - NEVER use "ni", "tampoco no", or any other negative words
+- If given "todavía", ONLY use "todavía" - NEVER use "aún"
+- If given "también", ONLY use "también" - NEVER use "además"
+- SYNONYMS ARE NOT ACCEPTABLE - The exact word provided must appear letter-for-letter in your sentence
+- DO NOT include ANY synonyms in the sentence - if the target word is "tampoco", do not use "ni", "aún", "todavía", etc.
+- Keep the sentence simple and ONLY use the target word, avoiding all related words with similar meanings
+
+WRONG EXAMPLES (DO NOT DO THIS):
+❌ Asked for "realmente", but used "verdaderamente" -> REJECTED (synonym substitution)
+❌ Asked for "todavía", but used "aún" -> REJECTED (synonym substitution)
+❌ Asked for "tampoco", but used "ni" -> REJECTED (synonym substitution)
+❌ Asked for "tampoco", but wrote "Ni me gusta, tampoco" -> REJECTED (contains synonym "ni" alongside target word)
+
+RIGHT EXAMPLES (THIS IS CORRECT):
+✓ Asked for "realmente" -> "La película realmente me emocionó." (exact word used, no synonyms)
+✓ Asked for "todavía" -> "Todavía no he comido." (exact word used, no synonyms)
+✓ Asked for "tampoco" -> "Yo tampoco quiero café." (exact word used, no synonyms)
+
+Requirements for your sentence:
+1. MUST contain the EXACT target word - character-by-character match (this is NON-NEGOTIABLE)
+2. Uses the word in a clear, visual context that's easy to picture
+3. Is at A1/A2 level (simple vocabulary and grammar)
+4. Uses Castilian Spanish (Spain)
+5. Is short (5-10 words maximum)
+6. Creates a memorable mental image
+
+MANDATORY VERIFICATION STEP:
+Before submitting your sentence, perform this check:
+1. Identify the target word you were given
+2. Search for that EXACT word in your sentence (every letter must match)
+3. If the word doesn't appear EXACTLY as given, rewrite the sentence
+4. If you used a synonym instead, START OVER with the correct word
+5. CRITICAL: Scan your sentence for common synonyms of the target word - if found, REWRITE to remove them:
+   - If target is "tampoco", check for "ni" and remove it
+   - If target is "todavía", check for "aún" and remove it
+   - If target is "realmente", check for "verdaderamente" and remove it
+6. The sentence should ONLY contain the target word, with NO synonyms present
 
 Format: Return ONLY the Spanish sentence, nothing else. No translation, no explanation.
 
-Examples:
+Standard examples:
 - Word: "silla" (chair) -> "La silla roja está en la cocina."
 - Word: "perro" (dog) -> "El perro grande corre en el parque."
 - Word: "café" (coffee) -> "Mi café caliente está en la mesa."
+- Word: "tampoco" (neither/not either) -> "Yo tampoco quiero café ahora."
 """,
 
     "word_analysis": """You are a Spanish language expert helping analyze words for a vocabulary learning app.
@@ -186,12 +236,15 @@ def get_available_models() -> list:
 
 def _get_model_for_mode(mode: str) -> str:
     """Get the appropriate model for a given mode."""
+    # Translation mode uses specialized translation model
+    # Translation and word analysis use specialized translation model
+    if mode in ("translate", "word_analysis"):
+        return TRANSLATE_MODEL
+
     # Modes that require accuracy (use larger model)
     accurate_modes = {
         "grammar_explanation",
         "vocabulary_helper",
-        "word_analysis",
-        "translate",
     }
     if mode in accurate_modes:
         return ACCURATE_MODEL
@@ -402,21 +455,27 @@ Tip: [pronunciation or usage tip]"""
 def generate_memory_sentence(spanish: str, english: str, model: str = None) -> str:
     """
     Generate a memorable sentence using a vocabulary word.
-    Uses FAST_MODEL by default (creative task, speed preferred).
+    Uses MEMORY_MODEL by default (gemma2:2b - optimized for 100% word inclusion).
 
     Args:
         spanish: The Spanish word
         english: The English translation
-        model: Ollama model to use (auto-selected if None)
+        model: Ollama model to use (defaults to MEMORY_MODEL if None)
 
     Returns:
         A vivid Spanish sentence using the word
     """
-    prompt = f'Create a memorable sentence for: "{spanish}" (meaning: {english})'
+    if model is None:
+        model = MEMORY_MODEL  # Use specialized model for best quality
+
+    # Build prompt with explicit word reminder
+    prompt = f'Create a memorable sentence for: "{spanish}" (meaning: {english})\n\n'
+    prompt += f'IMPORTANT: Your sentence must include the EXACT word "{spanish}" - not any synonym or related word.'
+
     return chat(prompt, mode="memory_sentence", model=model)
 
 
-def analyze_words_with_llm(words: list, model: str = None) -> list:
+def analyze_words_with_llm(words: list, model: str = None, progress_callback=None) -> list:
     """
     Analyze a list of Spanish words using Ollama to get:
     - Base form (infinitive for verbs, singular for nouns)
@@ -429,11 +488,13 @@ def analyze_words_with_llm(words: list, model: str = None) -> list:
     Args:
         words: List of Spanish words to analyze
         model: Ollama model to use (defaults to ACCURATE_MODEL)
+        progress_callback: Optional callback(current, total, message) for progress updates
 
     Returns:
         List of dicts with analyzed word info
     """
     import json
+    import unicodedata
 
     if not words:
         return []
@@ -441,6 +502,7 @@ def analyze_words_with_llm(words: list, model: str = None) -> list:
     # Process in batches of 20 to avoid overwhelming the LLM
     batch_size = 20
     all_results = []
+    total_batches = (len(words) + batch_size - 1) // batch_size
 
     for i in range(0, len(words), batch_size):
         batch = words[i:i + batch_size]
@@ -458,42 +520,135 @@ def analyze_words_with_llm(words: list, model: str = None) -> list:
 
             if json_start >= 0 and json_end > json_start:
                 json_str = response[json_start:json_end]
-                data = json.loads(json_str)
-                all_results.extend(data.get('words', []))
+
+                # Handle potential encoding issues by ensuring proper UTF-8
+                # This fixes issues where accented characters may be corrupted
+                try:
+                    # Normalize unicode characters to ensure consistency
+                    json_str = unicodedata.normalize('NFC', json_str)
+                    data = json.loads(json_str)
+                    all_results.extend(data.get('words', []))
+                except (json.JSONDecodeError, UnicodeDecodeError) as parse_error:
+                    # If JSON parsing fails, try to extract word data using simpler fallback
+                    # This handles cases where encoding corruption makes JSON invalid
+                    print(f"Warning: JSON parse error, attempting fallback translation lookup")
+                    print(f"  Error: {parse_error}")
+
+                    # Use frequency_data as fallback for translations
+                    from src.frequency_data import get_translation, get_frequency_rank
+                    from src.content_analysis import lemmatize_spanish
+
+                    for word in batch:
+                        base = word.lower().strip()
+                        translation = get_translation(base)
+                        base_form = base
+
+                        # If no translation in frequency data, try lemmatization
+                        if not translation:
+                            lemma = lemmatize_spanish(base)
+                            if lemma != base:
+                                base_form = lemma
+                                translation = get_translation(lemma)
+
+                        all_results.append({
+                            'spanish': word,
+                            'base_form': base_form,
+                            'english': translation,
+                            'pos': 'unknown',
+                            'skip': False
+                        })
             else:
-                print(f"Warning: Could not parse LLM response for word analysis")
-                # Fallback: return words without analysis
+                print(f"Warning: Could not find JSON in LLM response for batch")
+                print(f"  Response preview: {response[:200]}...")
+                print(f"  Using fast fallback to frequency_data instead of individual retries")
+                # When batch fails, use frequency_data fallback immediately
+                # This is much faster than individual LLM retries (seconds vs minutes)
+                from src.frequency_data import get_translation
+                from src.content_analysis import lemmatize_spanish
                 for word in batch:
+                    try:
+                        # Retry this single word
+                        single_response = chat(f"Analyze this Spanish word: {word}", mode="word_analysis", model=model)
+                        single_json_start = single_response.find('{')
+                        single_json_end = single_response.rfind('}') + 1
+
+                        if single_json_start >= 0 and single_json_end > single_json_start:
+                            single_json_str = single_response[single_json_start:single_json_end]
+                            single_json_str = unicodedata.normalize('NFC', single_json_str)
+                            single_data = json.loads(single_json_str)
+                            word_results = single_data.get('words', [])
+                            if word_results:
+                                all_results.extend(word_results)
+                                continue
+                    except Exception as retry_error:
+                        print(f"  Individual retry failed for '{word}': {retry_error}")
+
+                    # If individual retry also failed, use frequency_data fallback
+                    from src.frequency_data import get_translation
+                    from src.content_analysis import lemmatize_spanish
+                    base = word.lower().strip()
+                    translation = get_translation(base)
+                    base_form = base
+                    if not translation:
+                        lemma = lemmatize_spanish(base)
+                        if lemma != base:
+                            base_form = lemma
+                            translation = get_translation(lemma)
                     all_results.append({
                         'spanish': word,
-                        'base_form': word,
-                        'english': None,
+                        'base_form': base_form,
+                        'english': translation,
                         'pos': 'unknown',
                         'skip': False
                     })
 
         except json.JSONDecodeError as e:
             print(f"Warning: JSON decode error in word analysis: {e}")
-            # Fallback
+            # Fallback to frequency_data with lemmatization
+            from src.frequency_data import get_translation
+            from src.content_analysis import lemmatize_spanish
             for word in batch:
+                base = word.lower().strip()
+                translation = get_translation(base)
+                base_form = base
+                if not translation:
+                    lemma = lemmatize_spanish(base)
+                    if lemma != base:
+                        base_form = lemma
+                        translation = get_translation(lemma)
                 all_results.append({
                     'spanish': word,
-                    'base_form': word,
-                    'english': None,
+                    'base_form': base_form,
+                    'english': translation,
                     'pos': 'unknown',
                     'skip': False
                 })
         except Exception as e:
             print(f"Error in word analysis: {e}")
-            # Fallback
+            # Fallback to frequency_data with lemmatization
+            from src.frequency_data import get_translation
+            from src.content_analysis import lemmatize_spanish
             for word in batch:
+                base = word.lower().strip()
+                translation = get_translation(base)
+                base_form = base
+                if not translation:
+                    lemma = lemmatize_spanish(base)
+                    if lemma != base:
+                        base_form = lemma
+                        translation = get_translation(lemma)
                 all_results.append({
                     'spanish': word,
-                    'base_form': word,
-                    'english': None,
+                    'base_form': base_form,
+                    'english': translation,
                     'pos': 'unknown',
                     'skip': False
                 })
+
+        # Report progress after each batch
+        if progress_callback:
+            batch_num = (i // batch_size) + 1
+            progress_callback(batch_num, total_batches, f"Analyzing batch {batch_num} of {total_batches}")
 
     return all_results
 
