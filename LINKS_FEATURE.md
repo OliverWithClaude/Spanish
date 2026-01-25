@@ -61,6 +61,31 @@ While HablaConmigo focuses on **active practice** (speaking, vocabulary drills, 
 - Visual context makes content understandable
 - Complements HablaConmigo's active practice
 
+### 3. Kwiziq Spanish - Interactive Quizzes
+
+**URL:** https://spanish.kwiziq.com/my-languages/spanish
+
+**Visual:** 📝✓ Notepad emoji + checkmark (quiz/assessment theme)
+
+**Perfect for:**
+- Grammar practice and reinforcement
+- Level assessment (A0, A1, A2)
+- Identifying weak areas
+- Structured learning path
+
+**How to use with HablaConmigo:**
+- Take quizzes to identify grammar gaps
+- Use HablaConmigo to practice vocabulary from weak areas
+- Combine with Discover module to see grammar patterns in context
+- Login with Google credentials for easy access
+
+**Why this resource:**
+- Quiz-based learning with immediate feedback
+- Specifically targets beginner levels (A0-A2)
+- Adaptive quizzes based on your performance
+- Tracks progress and suggests study areas
+- Complements HablaConmigo's focus on speaking and vocabulary
+
 ## UI Design
 
 ### Layout Pattern
@@ -79,7 +104,7 @@ Each resource follows a consistent layout:
 ### Visual Elements
 
 - **Large emojis** (120px font-size) for visual appeal
-- **Styled link buttons** with brand colors (blue, purple)
+- **Styled link buttons** with brand colors (blue, purple, green)
 - **Markdown formatting** for clean, readable descriptions
 - **Horizontal dividers** to separate resources
 
@@ -87,7 +112,8 @@ Each resource follows a consistent layout:
 
 - Small Town Spanish Teacher: Blue (#2563eb)
 - Dreaming Spanish: Purple (#7c3aed)
-- Matches overall HablaConmigo theme
+- Kwiziq Spanish: Green (#059669)
+- All colors match overall HablaConmigo violet/slate theme
 
 ## Educational Framework
 
@@ -97,8 +123,11 @@ Combines multiple resources for comprehensive learning:
 
 1. **Morning (5 min):** Review due vocabulary in HablaConmigo
 2. **Mid-day (15 min):** Watch one Dreaming Spanish video
-3. **Evening (10 min):** Read a Simple Story, discover new words
-4. **Before bed (5 min):** Speaking practice or conversation
+3. **Afternoon (10 min):** Take a Kwiziq quiz on today's grammar topic
+4. **Evening (10 min):** Read a Simple Story, discover new words
+5. **Before bed (5 min):** Speaking practice or conversation
+
+**Total: ~45 minutes daily** - A complete, balanced Spanish learning routine!
 
 ### Content Discovery Workflow
 
@@ -116,8 +145,11 @@ The Links tab promotes balanced language acquisition:
 |------|----------|-------------|
 | **Input** | Simple Stories | Reading comprehension |
 | **Input** | Dreaming Spanish | Listening comprehension |
+| **Practice** | Kwiziq Spanish | Grammar accuracy, A0-A2 assessment |
 | **Output** | HablaConmigo Speaking | Pronunciation, fluency |
 | **Output** | HablaConmigo Vocabulary | Active recall, retention |
+
+This creates a **complete learning system**: Input (reading/listening) → Practice (grammar drills) → Output (speaking/recall)
 
 ## Implementation Details
 

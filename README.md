@@ -67,8 +67,10 @@ AI-powered Spanish learning application focused on **speaking and listening skil
 ### Learning Resources (Links Tab)
 - **Small Town Spanish Teacher** - Simple stories perfect for the Discover module
 - **Dreaming Spanish** - Hundreds of videos in easy/intermediate Spanish
+- **Kwiziq Spanish** - Interactive quizzes for grammar practice (A0-A2 levels)
 - Suggested daily routines combining multiple resources
 - Content discovery workflow guidance
+- Complete learning system: Input + Grammar + Output
 
 ## Learning Content
 

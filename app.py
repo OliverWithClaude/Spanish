@@ -1818,14 +1818,53 @@ The method focuses on understanding meaning through context, not translation. Co
 
                 gr.Markdown("---")
 
+                # Resource 3: Kwiziq Spanish
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.HTML("""
+                        <div style="text-align: center; padding: 20px;">
+                            <div style="font-size: 120px; line-height: 1;">📝</div>
+                            <div style="font-size: 40px; margin-top: 10px;">✓</div>
+                        </div>
+                        """)
+                    with gr.Column(scale=3):
+                        gr.Markdown("""
+### Kwiziq Spanish - Interactive Quizzes
+
+**Perfect for:** Grammar Practice & Level Assessment (A0-A2)
+
+Quiz-based platform specifically designed for beginner Spanish learners. Tests your knowledge and tracks weak areas with adaptive quizzes.
+
+**What you get:**
+- **Targeted quizzes** for A0, A1, and A2 levels (perfect match for HablaConmigo!)
+- **Grammar-focused practice** with immediate feedback
+- **Progress tracking** to see which topics you've mastered
+- **Personalized study plan** based on your quiz results
+
+**How to use:**
+- Login with your Google credentials (quick and easy)
+- Take quizzes to identify grammar gaps
+- Use HablaConmigo to practice words from weak areas
+- Combine with Discover module to reinforce tricky grammar in context
+
+**Why it complements HablaConmigo:**
+While HablaConmigo focuses on speaking and vocabulary, Kwiziq drills grammar rules. Together they give you both **practical fluency** (HablaConmigo) and **grammatical accuracy** (Kwiziq).
+
+[📝 Take Quizzes →](https://spanish.kwiziq.com/my-languages/spanish){:target="_blank"}
+                        """)
+                        gr.HTML('<a href="https://spanish.kwiziq.com/my-languages/spanish" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #059669; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">📝 Open Kwiziq Spanish</a>')
+
+                gr.Markdown("---")
+
                 gr.Markdown("""
 ### 💡 How to Use These Resources Together
 
 **Daily Routine Suggestion:**
 1. **Morning (5 min):** Review due vocabulary in HablaConmigo
 2. **Mid-day (15 min):** Watch one Dreaming Spanish video
-3. **Evening (10 min):** Read a Simple Story, discover new words in HablaConmigo
-4. **Before bed (5 min):** Quick speaking practice or conversation
+3. **Afternoon (10 min):** Take a Kwiziq quiz on today's grammar topic
+4. **Evening (10 min):** Read a Simple Story, discover new words in HablaConmigo
+5. **Before bed (5 min):** Quick speaking practice or conversation
 
 **Content Discovery Workflow:**
 1. Find interesting content (stories, video transcripts, articles)
@@ -1834,11 +1873,22 @@ The method focuses on understanding meaning through context, not translation. Co
 4. Save as package and add new words to vocabulary
 5. Practice those words with spaced repetition
 
-This combination gives you:
-- 📖 **Reading input** (stories)
-- 👂 **Listening input** (videos)
+**Complete Learning System:**
+
+This combination gives you a **balanced approach**:
+- 📖 **Reading input** (Simple Stories)
+- 👂 **Listening input** (Dreaming Spanish videos)
+- 📝 **Grammar practice** (Kwiziq quizzes)
 - 🗣️ **Speaking output** (HablaConmigo)
-- 💪 **Active practice** (vocabulary drills)
+- 💪 **Active recall** (HablaConmigo vocabulary drills)
+
+**Why this works:**
+- **Input first** (stories, videos) → builds comprehension
+- **Grammar drills** (Kwiziq) → solidifies structure
+- **Active practice** (HablaConmigo) → develops fluency
+- **Spaced repetition** → ensures long-term retention
+
+All three resources target **A0-A2 levels**, perfectly aligned with your learning journey!
                 """)
 
 
