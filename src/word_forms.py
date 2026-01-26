@@ -46,7 +46,7 @@ Return ONLY valid JSON in this exact format:
 Do not include any other text, only the JSON."""
 
     try:
-        response = chat(prompt, mode="word_analysis", model="llama3.2:latest", temperature=0.2)
+        response = chat(prompt, mode="word_analysis", model="llama3.2:latest")
 
         # Extract JSON from response
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
@@ -82,7 +82,7 @@ Return ONLY valid JSON:
 }}"""
 
     try:
-        response = chat(prompt, mode="word_analysis", model="llama3.2:latest", temperature=0.2)
+        response = chat(prompt, mode="word_analysis", model="llama3.2:latest")
 
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
         if json_match:
@@ -118,7 +118,7 @@ Return ONLY valid JSON:
 }}"""
 
     try:
-        response = chat(prompt, mode="word_analysis", model="llama3.2:latest", temperature=0.2)
+        response = chat(prompt, mode="word_analysis", model="llama3.2:latest")
 
         json_match = re.search(r'\{.*\}', response, re.DOTALL)
         if json_match:
@@ -303,12 +303,13 @@ def save_word_forms(forms: list):
     conn.close()
 
 
-def generate_all_word_forms(force_regenerate: bool = False) -> dict:
+def generate_all_word_forms(force_regenerate: bool = False, limit: int = None) -> dict:
     """
     Generate word forms for all learned/learning vocabulary based on user's grammar knowledge.
 
     Args:
         force_regenerate: If True, delete and regenerate all forms
+        limit: Optional limit on number of words to process (for testing)
 
     Returns:
         Dict with generation stats
@@ -323,49 +324,84 @@ def generate_all_word_forms(force_regenerate: bool = False) -> dict:
 
     # Get user's grammar knowledge
     grammar_knowledge = get_user_grammar_knowledge()
+    print(f"Grammar knowledge: {grammar_knowledge}")
 
-    # Get learned and learning vocabulary
+    # Get learned and learning vocabulary with part of speech info
+    # Try to get actual POS from database if available
     cursor.execute("""
-        SELECT v.id, v.spanish, vp.status
+        SELECT v.id, v.spanish, v.category, vp.status
         FROM vocabulary v
         JOIN vocabulary_progress vp ON v.id = vp.vocabulary_id
         WHERE vp.status IN ('learned', 'learning', 'due')
-    """)
+        ORDER BY v.id
+        LIMIT ?
+    """, (limit if limit else 99999,))
 
     vocabulary = cursor.fetchall()
     conn.close()
 
     total_forms_generated = 0
     words_processed = 0
+    verbs_processed = 0
+    nouns_processed = 0
+    adjectives_processed = 0
+
+    print(f"Processing {len(vocabulary)} vocabulary items...")
 
     for row in vocabulary:
-        vocab_id, spanish_word, status = row
+        vocab_id, spanish_word, category, status = row
 
-        # Determine part of speech (simple heuristic - check if ends in -ar, -er, -ir for verbs)
-        if spanish_word.endswith(('ar', 'er', 'ir')):
+        # Determine part of speech
+        # Priority: use category if available, otherwise use word ending heuristics
+        if category and 'verb' in category.lower():
             pos = 'verb'
-        elif spanish_word.endswith('o'):  # Common adjective ending
+        elif spanish_word.endswith(('ar', 'er', 'ir')) and len(spanish_word) > 3:
+            pos = 'verb'
+        elif category and 'adjective' in category.lower():
+            pos = 'adjective'
+        elif spanish_word.endswith('o') and len(spanish_word) > 2:
             pos = 'adjective'
         else:
-            pos = 'noun'  # Default to noun
+            pos = 'noun'
 
         # Generate forms
-        forms = generate_word_forms_for_vocabulary(vocab_id, spanish_word, pos, grammar_knowledge)
+        try:
+            forms = generate_word_forms_for_vocabulary(vocab_id, spanish_word, pos, grammar_knowledge)
 
-        # Save to database
-        save_word_forms(forms)
+            # Save to database
+            save_word_forms(forms)
 
-        total_forms_generated += len(forms)
-        words_processed += 1
+            total_forms_generated += len(forms)
+            words_processed += 1
 
-        # Progress indicator
-        if words_processed % 10 == 0:
-            print(f"Processed {words_processed} words...")
+            if pos == 'verb':
+                verbs_processed += 1
+            elif pos == 'noun':
+                nouns_processed += 1
+            elif pos == 'adjective':
+                adjectives_processed += 1
+
+            # Progress indicator
+            if words_processed % 10 == 0:
+                print(f"Processed {words_processed}/{len(vocabulary)} words... ({total_forms_generated} forms)")
+
+        except Exception as e:
+            print(f"Error processing {spanish_word}: {e}")
+            continue
+
+    print(f"\nGeneration complete!")
+    print(f"  Verbs: {verbs_processed}")
+    print(f"  Nouns: {nouns_processed}")
+    print(f"  Adjectives: {adjectives_processed}")
+    print(f"  Total forms: {total_forms_generated}")
 
     return {
         'words_processed': words_processed,
         'total_forms_generated': total_forms_generated,
-        'average_multiplier': total_forms_generated / words_processed if words_processed > 0 else 0
+        'average_multiplier': total_forms_generated / words_processed if words_processed > 0 else 0,
+        'verbs_processed': verbs_processed,
+        'nouns_processed': nouns_processed,
+        'adjectives_processed': adjectives_processed
     }
 
 
