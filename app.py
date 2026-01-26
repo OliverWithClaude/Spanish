@@ -818,6 +818,89 @@ def get_new_words_display():
 
 # ============ Statistics Tab ============
 
+def display_unified_cefr_score():
+    """Display unified multi-dimensional CEFR proficiency score"""
+    from src.database import calculate_unified_cefr_score
+
+    result = calculate_unified_cefr_score()
+
+    # Main score display
+    main_display = f"""### Overall Proficiency: **{result['overall_cefr']}** ({result['sublevel']})
+
+**Score: {result['overall_score']}%**
+
+Progress to next level: {'█' * int(result['overall_score'] / 10)}{'░' * (10 - int(result['overall_score'] / 10))} {result['overall_score']}%
+"""
+
+    # Dimension displays
+    vocab_dim = result['dimensions']['vocabulary']
+    vocab_display = f"""**📚 Vocabulary ({result['weights']['vocabulary']}%)**
+
+**{vocab_dim['cefr_level']}** - {vocab_dim['score']:.1f}%
+
+{'█' * int(vocab_dim['score'] / 10)}{'░' * (10 - int(vocab_dim['score'] / 10))}
+
+✓ {vocab_dim['learned']} learned
+📖 {vocab_dim['learning']} learning
+⭕ {vocab_dim['new']} new
+"""
+
+    grammar_dim = result['dimensions']['grammar']
+    grammar_display = f"""**📖 Grammar ({result['weights']['grammar']}%)**
+
+**{grammar_dim['cefr_level']}** - {grammar_dim['score']:.1f}%
+
+{'█' * int(grammar_dim['score'] / 10)}{'░' * (10 - int(grammar_dim['score'] / 10))}
+
+✓ {grammar_dim['mastered']} mastered
+📝 {grammar_dim['learned']} learned
+📖 {grammar_dim['learning']} learning
+"""
+
+    speaking_dim = result['dimensions']['speaking']
+    speaking_display = f"""**🗣️ Speaking ({result['weights']['speaking']}%)**
+
+**{speaking_dim['cefr_level']}** - {speaking_dim['score']:.1f}%
+
+{'█' * int(speaking_dim['score'] / 10)}{'░' * (10 - int(speaking_dim['score'] / 10))}
+
+🎤 {speaking_dim['attempts']} attempts
+📊 {speaking_dim['recent_avg']:.1f}% recent accuracy
+"""
+
+    content_dim = result['dimensions']['content']
+    content_display = f"""**🔍 Content ({result['weights']['content']}%)**
+
+**{content_dim['cefr_level']}** - {content_dim['score']:.1f}%
+
+{'█' * int(content_dim['score'] / 10)}{'░' * (10 - int(content_dim['score'] / 10))}
+
+✓ {content_dim['mastered_packages']} mastered
+📦 {content_dim['total_packages']} total packages
+"""
+
+    # Gating status
+    gating = result['gating']
+    gating_display = f"""### Level Requirements
+
+**A1** - ✅ Always Available
+- Vocabulary: {gating['a1']['vocab_mastery']}%
+- Grammar: {gating['a1']['grammar_mastery']}%
+
+**A2** - {'✅ Unlocked' if gating['a2']['unlocked'] else '🔒 Locked'}
+- Vocabulary: {gating['a2']['vocab_mastery']}% (need 80%)
+- Grammar: {gating['a2']['grammar_mastery']}% (need 80%)
+{'' if gating['a2']['unlocked'] else f"- {gating['a2']['requirement']}"}
+
+**B1** - {'✅ Unlocked' if gating['b1']['unlocked'] else '🔒 Locked'}
+- Vocabulary: {gating['b1']['vocab_mastery']}% (need 80%)
+- Grammar: {gating['b1']['grammar_mastery']}% (need 80%)
+{'' if gating['b1']['unlocked'] else f"- {gating['b1']['requirement']}"}
+"""
+
+    return main_display, vocab_display, grammar_display, speaking_display, content_display, gating_display
+
+
 def get_stats_display():
     """Get formatted statistics"""
     stats = get_statistics()
@@ -1406,6 +1489,27 @@ def create_app():
 
             # ============ Statistics Tab ============
             with gr.Tab("📊 Progress"):
+                # Unified CEFR Score Section
+                with gr.Row():
+                    gr.Markdown("## 🎯 Your Spanish Proficiency")
+
+                unified_score_display = gr.Markdown()
+                refresh_unified_btn = gr.Button("🔄 Refresh Proficiency Score", variant="primary")
+
+                # Dimension breakdown
+                with gr.Row():
+                    vocab_dimension = gr.Markdown()
+                    grammar_dimension = gr.Markdown()
+                    speaking_dimension = gr.Markdown()
+                    content_dimension = gr.Markdown()
+
+                # Level gating status
+                with gr.Accordion("Level Unlocking Status", open=False):
+                    gating_display = gr.Markdown()
+
+                gr.Markdown("---")
+
+                # Original sections
                 with gr.Row():
                     with gr.Column(scale=1):
                         gr.Markdown("## Learning Statistics")
@@ -1613,7 +1717,14 @@ Go to the **Vocabulary** tab to start learning these words!"""
                     outputs=[grammar_topics_display, topic_selector]
                 )
 
+                # Unified CEFR score event handlers
+                refresh_unified_btn.click(
+                    display_unified_cefr_score,
+                    outputs=[unified_score_display, vocab_dimension, grammar_dimension, speaking_dimension, content_dimension, gating_display]
+                )
+
                 # Load initial displays
+                app.load(display_unified_cefr_score, outputs=[unified_score_display, vocab_dimension, grammar_dimension, speaking_dimension, content_dimension, gating_display])
                 app.load(get_stats_display, outputs=[stats_display])
                 app.load(lambda: format_readiness_display("A1"), outputs=[dele_display])
                 app.load(display_grammar_summary, outputs=[grammar_summary])

@@ -1993,6 +1993,462 @@ def get_grammar_topics_with_progress(cefr_level=None):
     return topics
 
 
+# ============ Unified CEFR Scoring Functions ============
+
+def calculate_vocabulary_score():
+    """Calculate vocabulary proficiency score (0-100)
+
+    Returns:
+        dict with score, percentage, cefr_level, and breakdown
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get vocabulary counts by status
+    cursor.execute("""
+        SELECT status, COUNT(*)
+        FROM vocabulary_progress
+        GROUP BY status
+    """)
+
+    status_counts = {row[0]: row[1] for row in cursor.fetchall()}
+
+    # Get total vocabulary
+    cursor.execute("SELECT COUNT(*) FROM vocabulary")
+    total_vocab = cursor.fetchone()[0]
+
+    # Weighted scoring
+    # learned/due = 1.0, learning = 0.5, struggling = 0.25, new = 0.0
+    learned = status_counts.get('learned', 0) + status_counts.get('due', 0)
+    learning = status_counts.get('learning', 0)
+    struggling = status_counts.get('struggling', 0)
+    new = status_counts.get('new', 0)
+
+    weighted_score = (learned * 1.0) + (learning * 0.5) + (struggling * 0.25)
+    percentage = (weighted_score / total_vocab * 100) if total_vocab > 0 else 0
+
+    # Map to CEFR level
+    # A1: 0-25%, A2: 25-50%, B1: 50-70%, B2: 70-85%, C1: 85-95%, C2: 95%+
+    if percentage < 25:
+        cefr_level = "A1"
+    elif percentage < 50:
+        cefr_level = "A2"
+    elif percentage < 70:
+        cefr_level = "B1"
+    elif percentage < 85:
+        cefr_level = "B2"
+    elif percentage < 95:
+        cefr_level = "C1"
+    else:
+        cefr_level = "C2"
+
+    conn.close()
+
+    return {
+        'score': percentage,
+        'cefr_level': cefr_level,
+        'learned': learned,
+        'learning': learning,
+        'struggling': struggling,
+        'new': new,
+        'total': total_vocab
+    }
+
+
+def calculate_grammar_score():
+    """Calculate grammar proficiency score (0-100)
+
+    Returns:
+        dict with score, percentage, cefr_level, and breakdown
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get grammar progress by status
+    cursor.execute("""
+        SELECT status, COUNT(*)
+        FROM grammar_user_progress
+        GROUP BY status
+    """)
+
+    status_counts = {row[0]: row[1] for row in cursor.fetchall()}
+
+    # Get total topics
+    cursor.execute("SELECT COUNT(*) FROM grammar_topics")
+    total_topics = cursor.fetchone()[0]
+
+    # Weighted scoring
+    # mastered = 1.0, learned = 0.7, learning = 0.3, new = 0.0
+    mastered = status_counts.get('mastered', 0)
+    learned = status_counts.get('learned', 0)
+    learning = status_counts.get('learning', 0)
+    new = total_topics - (mastered + learned + learning)
+
+    weighted_score = (mastered * 1.0) + (learned * 0.7) + (learning * 0.3)
+    percentage = (weighted_score / total_topics * 100) if total_topics > 0 else 0
+
+    # Map to CEFR level (same thresholds as vocabulary)
+    if percentage < 25:
+        cefr_level = "A1"
+    elif percentage < 50:
+        cefr_level = "A2"
+    elif percentage < 70:
+        cefr_level = "B1"
+    elif percentage < 85:
+        cefr_level = "B2"
+    elif percentage < 95:
+        cefr_level = "C1"
+    else:
+        cefr_level = "C2"
+
+    conn.close()
+
+    return {
+        'score': percentage,
+        'cefr_level': cefr_level,
+        'mastered': mastered,
+        'learned': learned,
+        'learning': learning,
+        'new': new,
+        'total': total_topics
+    }
+
+
+def calculate_speaking_score():
+    """Calculate speaking proficiency score (0-100)
+
+    Based on pronunciation accuracy from practice attempts
+
+    Returns:
+        dict with score, cefr_level, and stats
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get recent pronunciation attempts (last 50)
+    cursor.execute("""
+        SELECT accuracy
+        FROM pronunciation_attempts
+        ORDER BY created_at DESC
+        LIMIT 50
+    """)
+
+    attempts = [row[0] for row in cursor.fetchall()]
+
+    if not attempts:
+        conn.close()
+        return {
+            'score': 0,
+            'cefr_level': 'A1',
+            'attempts': 0,
+            'avg_accuracy': 0,
+            'recent_avg': 0
+        }
+
+    avg_accuracy = sum(attempts) / len(attempts)
+
+    # Get overall average
+    cursor.execute("SELECT AVG(accuracy) FROM pronunciation_attempts")
+    overall_avg = cursor.fetchone()[0] or 0
+
+    # Get total attempts
+    cursor.execute("SELECT COUNT(*) FROM pronunciation_attempts")
+    total_attempts = cursor.fetchone()[0]
+
+    # Score is based on recent accuracy (weight recent more heavily)
+    # 90%+ = fluent, 70-90% = good, 50-70% = intermediate, <50% = beginner
+    score = avg_accuracy
+
+    # Map to CEFR (speaking thresholds are stricter)
+    if score < 40:
+        cefr_level = "A1"
+    elif score < 60:
+        cefr_level = "A2"
+    elif score < 75:
+        cefr_level = "B1"
+    elif score < 85:
+        cefr_level = "B2"
+    elif score < 92:
+        cefr_level = "C1"
+    else:
+        cefr_level = "C2"
+
+    conn.close()
+
+    return {
+        'score': score,
+        'cefr_level': cefr_level,
+        'attempts': total_attempts,
+        'avg_accuracy': overall_avg,
+        'recent_avg': avg_accuracy
+    }
+
+
+def calculate_content_score():
+    """Calculate content mastery score (0-100)
+
+    Based on imported content packages and word mastery
+
+    Returns:
+        dict with score, cefr_level, and stats
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get total packages
+    cursor.execute("SELECT COUNT(*) FROM content_packages")
+    total_packages = cursor.fetchone()[0]
+
+    if total_packages == 0:
+        conn.close()
+        return {
+            'score': 0,
+            'cefr_level': 'A1',
+            'total_packages': 0,
+            'mastered_packages': 0
+        }
+
+    # Count packages where user has learned most words
+    # A package is "mastered" if user knows 80%+ of its words
+    cursor.execute("""
+        SELECT
+            cp.id,
+            cp.name,
+            COUNT(pv.id) as total_words,
+            SUM(CASE
+                WHEN vp.status IN ('learned', 'due') THEN 1
+                ELSE 0
+            END) as learned_words
+        FROM content_packages cp
+        LEFT JOIN package_vocabulary pv ON cp.id = pv.package_id
+        LEFT JOIN vocabulary v ON pv.spanish = v.spanish
+        LEFT JOIN vocabulary_progress vp ON v.id = vp.vocabulary_id
+        GROUP BY cp.id
+    """)
+
+    mastered_count = 0
+    partially_mastered = 0
+
+    for row in cursor.fetchall():
+        pkg_id, title, total_words, learned_words = row
+        if total_words > 0:
+            mastery_pct = (learned_words or 0) / total_words * 100
+            if mastery_pct >= 80:
+                mastered_count += 1
+            elif mastery_pct >= 40:
+                partially_mastered += 1
+
+    # Weighted scoring
+    weighted_score = (mastered_count * 1.0) + (partially_mastered * 0.5)
+    percentage = (weighted_score / total_packages * 100) if total_packages > 0 else 0
+
+    # Map to CEFR
+    if percentage < 25:
+        cefr_level = "A1"
+    elif percentage < 50:
+        cefr_level = "A2"
+    elif percentage < 70:
+        cefr_level = "B1"
+    elif percentage < 85:
+        cefr_level = "B2"
+    elif percentage < 95:
+        cefr_level = "C1"
+    else:
+        cefr_level = "C2"
+
+    conn.close()
+
+    return {
+        'score': percentage,
+        'cefr_level': cefr_level,
+        'total_packages': total_packages,
+        'mastered_packages': mastered_count,
+        'partially_mastered': partially_mastered
+    }
+
+
+def calculate_unified_cefr_score():
+    """Calculate unified multi-dimensional CEFR proficiency score
+
+    Combines:
+    - Vocabulary (30%)
+    - Grammar (35%)
+    - Speaking (20%)
+    - Content (15%)
+
+    Returns:
+        dict with overall score, CEFR level, and dimension breakdown
+    """
+    # Get individual dimension scores
+    vocab = calculate_vocabulary_score()
+    grammar = calculate_grammar_score()
+    speaking = calculate_speaking_score()
+    content = calculate_content_score()
+
+    # Weighted combination
+    overall_score = (
+        vocab['score'] * 0.30 +
+        grammar['score'] * 0.35 +
+        speaking['score'] * 0.20 +
+        content['score'] * 0.15
+    )
+
+    # Map to CEFR level
+    if overall_score < 25:
+        overall_cefr = "A1"
+        sublevel = "A1.1" if overall_score < 12.5 else "A1.2"
+    elif overall_score < 50:
+        overall_cefr = "A2"
+        sublevel = "A2.1" if overall_score < 37.5 else "A2.2"
+    elif overall_score < 70:
+        overall_cefr = "B1"
+        sublevel = "B1.1" if overall_score < 60 else "B1.2"
+    elif overall_score < 85:
+        overall_cefr = "B2"
+        sublevel = "B2.1" if overall_score < 77.5 else "B2.2"
+    elif overall_score < 95:
+        overall_cefr = "C1"
+        sublevel = "C1.1" if overall_score < 90 else "C1.2"
+    else:
+        overall_cefr = "C2"
+        sublevel = "C2"
+
+    # Check gating requirements
+    # Must have 80% of previous level mastered to unlock next
+    gating_status = check_level_gating(vocab, grammar)
+
+    return {
+        'overall_score': round(overall_score, 1),
+        'overall_cefr': overall_cefr,
+        'sublevel': sublevel,
+        'dimensions': {
+            'vocabulary': vocab,
+            'grammar': grammar,
+            'speaking': speaking,
+            'content': content
+        },
+        'weights': {
+            'vocabulary': 30,
+            'grammar': 35,
+            'speaking': 20,
+            'content': 15
+        },
+        'gating': gating_status
+    }
+
+
+def check_level_gating(vocab_data, grammar_data):
+    """Check if user meets requirements to unlock next levels
+
+    Requirements:
+    - A2 unlock: 80% of A1 vocabulary + 80% of A1 grammar
+    - B1 unlock: 80% of A2 vocabulary + 80% of A2 grammar
+
+    Returns:
+        dict with unlock status for each level
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Calculate A1 vocabulary mastery
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM vocabulary
+        WHERE cefr_level = 'A1'
+    """)
+    a1_vocab_total = cursor.fetchone()[0] or 1
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM vocabulary v
+        JOIN vocabulary_progress vp ON v.id = vp.vocabulary_id
+        WHERE v.cefr_level = 'A1'
+        AND vp.status IN ('learned', 'due')
+    """)
+    a1_vocab_learned = cursor.fetchone()[0] or 0
+    a1_vocab_pct = (a1_vocab_learned / a1_vocab_total * 100) if a1_vocab_total > 0 else 0
+
+    # Calculate A1 grammar mastery
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM grammar_topics
+        WHERE cefr_level = 'A1'
+    """)
+    a1_grammar_total = cursor.fetchone()[0] or 1
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM grammar_topics gt
+        JOIN grammar_user_progress gup ON gt.id = gup.grammar_topic_id
+        WHERE gt.cefr_level = 'A1'
+        AND gup.status IN ('learned', 'mastered')
+    """)
+    a1_grammar_learned = cursor.fetchone()[0] or 0
+    a1_grammar_pct = (a1_grammar_learned / a1_grammar_total * 100) if a1_grammar_total > 0 else 0
+
+    # A2 requirements
+    a2_unlocked = (a1_vocab_pct >= 80 and a1_grammar_pct >= 80)
+
+    # Calculate A2 mastery for B1 unlock
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM vocabulary
+        WHERE cefr_level = 'A2'
+    """)
+    a2_vocab_total = cursor.fetchone()[0] or 1
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM vocabulary v
+        JOIN vocabulary_progress vp ON v.id = vp.vocabulary_id
+        WHERE v.cefr_level = 'A2'
+        AND vp.status IN ('learned', 'due')
+    """)
+    a2_vocab_learned = cursor.fetchone()[0] or 0
+    a2_vocab_pct = (a2_vocab_learned / a2_vocab_total * 100) if a2_vocab_total > 0 else 0
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM grammar_topics
+        WHERE cefr_level = 'A2'
+    """)
+    a2_grammar_total = cursor.fetchone()[0] or 1
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM grammar_topics gt
+        JOIN grammar_user_progress gup ON gt.id = gup.grammar_topic_id
+        WHERE gt.cefr_level = 'A2'
+        AND gup.status IN ('learned', 'mastered')
+    """)
+    a2_grammar_learned = cursor.fetchone()[0] or 0
+    a2_grammar_pct = (a2_grammar_learned / a2_grammar_total * 100) if a2_grammar_total > 0 else 0
+
+    b1_unlocked = (a2_vocab_pct >= 80 and a2_grammar_pct >= 80)
+
+    conn.close()
+
+    return {
+        'a1': {
+            'unlocked': True,  # Always unlocked
+            'vocab_mastery': round(a1_vocab_pct, 1),
+            'grammar_mastery': round(a1_grammar_pct, 1)
+        },
+        'a2': {
+            'unlocked': a2_unlocked,
+            'vocab_mastery': round(a2_vocab_pct, 1),
+            'grammar_mastery': round(a2_grammar_pct, 1),
+            'requirement': 'Need 80% of A1 vocabulary + grammar'
+        },
+        'b1': {
+            'unlocked': b1_unlocked,
+            'vocab_mastery': round(a2_vocab_pct, 1),
+            'grammar_mastery': round(a2_grammar_pct, 1),
+            'requirement': 'Need 80% of A2 vocabulary + grammar'
+        }
+    }
+
+
 if __name__ == "__main__":
     print("Initializing database...")
     init_database()
