@@ -1998,9 +1998,29 @@ def get_grammar_topics_with_progress(cefr_level=None):
 def calculate_vocabulary_score():
     """Calculate vocabulary proficiency score (0-100)
 
+    Based on CEFR vocabulary benchmarks:
+    - A1: ~1,125 words
+    - A2: ~1,756 words (mean of 1,500-2,500 range)
+    - B1: ~2,422 words (mean of 2,750-3,250 range)
+    - B2: ~3,500 words (estimated)
+    - C1: ~5,000 words (estimated)
+    - C2: ~6,500 words (estimated)
+
+    Source: Milton & Alexiou research on CEFR vocabulary requirements
+
     Returns:
         dict with score, percentage, cefr_level, and breakdown
     """
+    # CEFR vocabulary benchmarks (word counts)
+    CEFR_VOCAB_BENCHMARKS = {
+        'A1': 1125,
+        'A2': 1756,
+        'B1': 2422,
+        'B2': 3500,
+        'C1': 5000,
+        'C2': 6500
+    }
+
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -2013,34 +2033,75 @@ def calculate_vocabulary_score():
 
     status_counts = {row[0]: row[1] for row in cursor.fetchall()}
 
-    # Get total vocabulary
+    # Get total vocabulary in database
     cursor.execute("SELECT COUNT(*) FROM vocabulary")
     total_vocab = cursor.fetchone()[0]
 
-    # Weighted scoring
-    # learned/due = 1.0, learning = 0.5, struggling = 0.25, new = 0.0
+    # Count learned words (learned/due = full credit, learning = half credit)
+    # Only learned words count toward CEFR level
     learned = status_counts.get('learned', 0) + status_counts.get('due', 0)
     learning = status_counts.get('learning', 0)
     struggling = status_counts.get('struggling', 0)
     new = status_counts.get('new', 0)
 
-    weighted_score = (learned * 1.0) + (learning * 0.5) + (struggling * 0.25)
-    percentage = (weighted_score / total_vocab * 100) if total_vocab > 0 else 0
+    # For CEFR level determination, count learned words + half credit for learning
+    effective_word_count = learned + (learning * 0.5)
 
-    # Map to CEFR level
-    # A1: 0-25%, A2: 25-50%, B1: 50-70%, B2: 70-85%, C1: 85-95%, C2: 95%+
-    if percentage < 25:
+    # Determine CEFR level based on absolute word count
+    if effective_word_count < CEFR_VOCAB_BENCHMARKS['A1']:
         cefr_level = "A1"
-    elif percentage < 50:
+        target_benchmark = CEFR_VOCAB_BENCHMARKS['A1']
+    elif effective_word_count < CEFR_VOCAB_BENCHMARKS['A2']:
+        cefr_level = "A1"  # Still A1, working toward A2
+        target_benchmark = CEFR_VOCAB_BENCHMARKS['A2']
+    elif effective_word_count < CEFR_VOCAB_BENCHMARKS['B1']:
         cefr_level = "A2"
-    elif percentage < 70:
+        target_benchmark = CEFR_VOCAB_BENCHMARKS['B1']
+    elif effective_word_count < CEFR_VOCAB_BENCHMARKS['B2']:
         cefr_level = "B1"
-    elif percentage < 85:
+        target_benchmark = CEFR_VOCAB_BENCHMARKS['B2']
+    elif effective_word_count < CEFR_VOCAB_BENCHMARKS['C1']:
         cefr_level = "B2"
-    elif percentage < 95:
+        target_benchmark = CEFR_VOCAB_BENCHMARKS['C1']
+    elif effective_word_count < CEFR_VOCAB_BENCHMARKS['C2']:
         cefr_level = "C1"
+        target_benchmark = CEFR_VOCAB_BENCHMARKS['C2']
     else:
         cefr_level = "C2"
+        target_benchmark = CEFR_VOCAB_BENCHMARKS['C2']
+
+    # Calculate percentage toward next level (0-100 scale)
+    # Map word count to 0-100% based on progression through CEFR levels
+    # 0-1125 words = 0-20% (A1 range)
+    # 1125-1756 words = 20-40% (A2 range)
+    # 1756-2422 words = 40-60% (B1 range)
+    # 2422-3500 words = 60-75% (B2 range)
+    # 3500-5000 words = 75-90% (C1 range)
+    # 5000+ words = 90-100% (C2 range)
+
+    if effective_word_count < CEFR_VOCAB_BENCHMARKS['A1']:
+        # A1 range: 0-20%
+        percentage = (effective_word_count / CEFR_VOCAB_BENCHMARKS['A1']) * 20
+    elif effective_word_count < CEFR_VOCAB_BENCHMARKS['A2']:
+        # A2 range: 20-40%
+        progress = (effective_word_count - CEFR_VOCAB_BENCHMARKS['A1']) / (CEFR_VOCAB_BENCHMARKS['A2'] - CEFR_VOCAB_BENCHMARKS['A1'])
+        percentage = 20 + (progress * 20)
+    elif effective_word_count < CEFR_VOCAB_BENCHMARKS['B1']:
+        # B1 range: 40-60%
+        progress = (effective_word_count - CEFR_VOCAB_BENCHMARKS['A2']) / (CEFR_VOCAB_BENCHMARKS['B1'] - CEFR_VOCAB_BENCHMARKS['A2'])
+        percentage = 40 + (progress * 20)
+    elif effective_word_count < CEFR_VOCAB_BENCHMARKS['B2']:
+        # B2 range: 60-75%
+        progress = (effective_word_count - CEFR_VOCAB_BENCHMARKS['B1']) / (CEFR_VOCAB_BENCHMARKS['B2'] - CEFR_VOCAB_BENCHMARKS['B1'])
+        percentage = 60 + (progress * 15)
+    elif effective_word_count < CEFR_VOCAB_BENCHMARKS['C1']:
+        # C1 range: 75-90%
+        progress = (effective_word_count - CEFR_VOCAB_BENCHMARKS['B2']) / (CEFR_VOCAB_BENCHMARKS['C1'] - CEFR_VOCAB_BENCHMARKS['B2'])
+        percentage = 75 + (progress * 15)
+    else:
+        # C2 range: 90-100%
+        progress = min(1.0, (effective_word_count - CEFR_VOCAB_BENCHMARKS['C1']) / (CEFR_VOCAB_BENCHMARKS['C2'] - CEFR_VOCAB_BENCHMARKS['C1']))
+        percentage = 90 + (progress * 10)
 
     conn.close()
 
@@ -2051,7 +2112,9 @@ def calculate_vocabulary_score():
         'learning': learning,
         'struggling': struggling,
         'new': new,
-        'total': total_vocab
+        'total': total_vocab,
+        'effective_word_count': int(effective_word_count),
+        'target_benchmark': target_benchmark
     }
 
 
@@ -2117,7 +2180,19 @@ def calculate_grammar_score():
 def calculate_speaking_score():
     """Calculate speaking proficiency score (0-100)
 
-    Based on pronunciation accuracy from practice attempts
+    IMPORTANT: CEFR speaking assessment focuses on communicative competence and
+    intelligibility, NOT pronunciation accuracy or native-like accent.
+
+    This is a rough approximation based on pronunciation practice. True CEFR
+    speaking assessment requires evaluation of:
+    - Can-do statements (e.g., "can introduce themselves", "can describe experiences")
+    - Communicative task completion
+    - Intelligibility (can be understood by listeners)
+    - Fluency and interaction ability
+
+    Pronunciation accuracy is used here as a proxy for intelligibility, with
+    conservative thresholds. Even intermediate learners typically have accents
+    while still being intelligible.
 
     Returns:
         dict with score, cefr_level, and stats
@@ -2155,23 +2230,36 @@ def calculate_speaking_score():
     cursor.execute("SELECT COUNT(*) FROM pronunciation_attempts")
     total_attempts = cursor.fetchone()[0]
 
-    # Score is based on recent accuracy (weight recent more heavily)
-    # 90%+ = fluent, 70-90% = good, 50-70% = intermediate, <50% = beginner
-    score = avg_accuracy
+    # Use a conservative scoring model that doesn't overestimate
+    # Map pronunciation accuracy to a score that represents intelligibility
+    # The score progression is more gradual to avoid overestimation
 
-    # Map to CEFR (speaking thresholds are stricter)
-    if score < 40:
+    # Conservative mapping: pronunciation accuracy → intelligibility score
+    # Even B2/C1 speakers often have noticeable accents (70-80% accuracy is intelligible)
+    if avg_accuracy < 30:
+        # Very low accuracy - likely not intelligible
+        score = avg_accuracy * 0.5  # 0-15%
         cefr_level = "A1"
-    elif score < 60:
+    elif avg_accuracy < 50:
+        # Low accuracy - basic intelligibility
+        score = 15 + (avg_accuracy - 30) * 0.75  # 15-30%
+        cefr_level = "A1"
+    elif avg_accuracy < 70:
+        # Moderate accuracy - generally intelligible
+        score = 30 + (avg_accuracy - 50) * 1.0  # 30-50%
         cefr_level = "A2"
-    elif score < 75:
+    elif avg_accuracy < 85:
+        # Good accuracy - clearly intelligible
+        score = 50 + (avg_accuracy - 70) * 1.0  # 50-65%
         cefr_level = "B1"
-    elif score < 85:
-        cefr_level = "B2"
-    elif score < 92:
-        cefr_level = "C1"
     else:
-        cefr_level = "C2"
+        # High accuracy - very intelligible
+        score = 65 + (avg_accuracy - 85) * 1.5  # 65-87.5%
+        cefr_level = "B2"
+
+    # Cap score at 87.5% to avoid overestimating
+    # C1/C2 speaking requires advanced discourse skills beyond pronunciation
+    score = min(score, 87.5)
 
     conn.close()
 

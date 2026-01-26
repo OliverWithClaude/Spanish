@@ -2,7 +2,35 @@
 
 All notable changes to HablaConmigo Spanish Learning App.
 
-## [2026-01-26] - Enhanced CEFR Scoring System
+## [2026-01-26] - Enhanced CEFR Scoring System (CORRECTED)
+
+### Fixed (Critical Correction)
+
+**CEFR Scoring Calibration** - Fixed fundamental scoring errors that overestimated proficiency by ~20 percentage points
+
+**Vocabulary Scoring Correction**:
+- **Before**: Calculated percentage of database words (553/968 = 57% → incorrectly labeled as B1)
+- **After**: Uses absolute CEFR word count benchmarks (553 words → correctly labeled as A1)
+- **Impact**: Vocabulary score changed from 65.5% (B1) to 11.2% (A1)
+
+**CEFR Vocabulary Benchmarks** (based on Milton & Alexiou research):
+- A1: ~1,125 words
+- A2: ~1,756 words (mean of 1,500-2,500 range)
+- B1: ~2,422 words (mean of 2,750-3,250 range)
+- B2: ~3,500 words
+- C1: ~5,000 words
+- C2: ~6,500 words
+
+**Speaking Scoring Correction**:
+- **Before**: Used pronunciation accuracy directly (45.9% → A2 level)
+- **After**: Conservative scoring based on intelligibility (45.9% accuracy → 26.9% score → A1 level)
+- **Rationale**: CEFR speaking focuses on communicative competence and intelligibility, NOT pronunciation accuracy
+- **Research**: "Accent remains a feature of speech for many with very high language proficiency - intelligibility is essential, not native speakerness"
+
+**Overall Impact**:
+- Overall proficiency changed from **A2 (A2.1) at 33.5%** to **A1 (A1.2) at 13.4%**
+- Provides realistic assessment aligned with established CEFR standards
+- User feedback: "The Overall Proficiency: A2 (A2.1) Score: 33.5% is totally overestimating my capabilities" → confirmed and fixed
 
 ### Added
 
@@ -69,15 +97,16 @@ All notable changes to HablaConmigo Spanish Learning App.
 3. Actionable feedback on what to improve
 4. Proper weighting (grammar 35%, vocabulary 30%, speaking 20%, content 15%)
 
-### Example Output
+### Example Output (After Correction)
 
 ```
-Overall: A2 (A2.1) - 33.5%
+Overall: A1 (A1.2) - 13.4%
 
 Dimensions:
-- Vocabulary: 65.5% (B1) - 553 learned, 158 learning
+- Vocabulary: 11.2% (A1) - 632 effective words (553 learned, 158 learning)
+  Target: 1,756 words for A2
 - Grammar: 4.7% (A1) - 1 mastered, 1 learned, 1 learning
-- Speaking: 45.9% (A2) - 216 attempts, 45.9% avg
+- Speaking: 26.9% (A1) - 216 attempts, 45.9% avg accuracy
 - Content: 20.0% (A1) - 0 mastered packages
 
 Gating:

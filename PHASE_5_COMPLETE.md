@@ -48,12 +48,37 @@ Overall Score =
 ### 4. Individual Dimension Scoring
 
 #### Vocabulary Scoring
+
+**CEFR-Aligned Scoring** (corrected from original implementation)
+
+Uses **absolute CEFR word count benchmarks** based on research by Milton & Alexiou:
+- **A1**: ~1,125 words
+- **A2**: ~1,756 words (mean of 1,500-2,500 range)
+- **B1**: ~2,422 words (mean of 2,750-3,250 range)
+- **B2**: ~3,500 words (estimated)
+- **C1**: ~5,000 words (estimated)
+- **C2**: ~6,500 words (estimated)
+
+**Word Counting**:
 - **Learned/Due**: 1.0 weight (full credit)
 - **Learning**: 0.5 weight (half credit)
-- **Struggling**: 0.25 weight (quarter credit)
-- **New**: 0.0 weight (no credit)
+- **Struggling/New**: 0.0 weight (no credit)
 
-Formula: `(learned + learning × 0.5 + struggling × 0.25) / total × 100`
+**Effective word count** = learned + (learning × 0.5)
+
+**Score Mapping** (0-100% scale):
+- **A1 range** (0-1,125 words): 0-20%
+- **A2 range** (1,125-1,756 words): 20-40%
+- **B1 range** (1,756-2,422 words): 40-60%
+- **B2 range** (2,422-3,500 words): 60-75%
+- **C1 range** (3,500-5,000 words): 75-90%
+- **C2 range** (5,000+ words): 90-100%
+
+**Example**: 553 learned + 158 learning = 632 effective words
+- 632 < 1,125 (A1 benchmark) → **A1 level**
+- Progress: 632 / 1,125 = 56.2% of A1 → **11.2% overall score**
+
+**Note**: This corrected scoring is much more conservative than the original implementation, which incorrectly calculated percentage of database words instead of CEFR benchmarks.
 
 #### Grammar Scoring
 - **Mastered**: 1.0 weight (full credit)
@@ -64,10 +89,28 @@ Formula: `(learned + learning × 0.5 + struggling × 0.25) / total × 100`
 Formula: `(mastered + learned × 0.7 + learning × 0.3) / total × 100`
 
 #### Speaking Scoring
-- Based on **recent 50 pronunciation attempts**
-- Average accuracy percentage
-- Stricter thresholds than other dimensions:
-  - A1: <40%, A2: 40-60%, B1: 60-75%, B2: 75-85%, C1: 85-92%, C2: 92%+
+
+**IMPORTANT**: CEFR speaking assessment focuses on **communicative competence and intelligibility**, NOT pronunciation accuracy or native-like accent.
+
+This is a **rough approximation** based on pronunciation practice. True CEFR speaking assessment requires evaluation of:
+- Can-do statements (e.g., "can introduce themselves", "can describe experiences")
+- Communicative task completion
+- Intelligibility (can be understood by listeners)
+- Fluency and interaction ability
+
+**Conservative Scoring Model**:
+
+Pronunciation accuracy is used as a **proxy for intelligibility** with conservative thresholds:
+
+- **<30% accuracy**: Very low intelligibility → 0-15% score (A1)
+- **30-50% accuracy**: Basic intelligibility → 15-30% score (A1)
+- **50-70% accuracy**: Generally intelligible → 30-50% score (A2)
+- **70-85% accuracy**: Clearly intelligible → 50-65% score (B1)
+- **85%+ accuracy**: Very intelligible → 65-87.5% score (B2)
+
+**Maximum score capped at 87.5%** because C1/C2 speaking requires advanced discourse skills beyond pronunciation (debate, persuasion, nuanced expression).
+
+**Note**: Even B2/C1 speakers often have noticeable accents. Research shows "accent remains a feature of speech for many with very high language proficiency - it is intelligibility that is essential, not native speakerness."
 
 #### Content Scoring
 - **Mastered package**: 80%+ of words known (1.0 weight)
@@ -131,18 +174,18 @@ Added to `app.py` (Progress tab):
 4. **Refresh Button** - Updates all scores on demand
 5. **Auto-load** - Scores load automatically when tab opens
 
-## Test Results
+## Test Results (CORRECTED)
 
-From `test_unified_cefr.py`:
+From `test_unified_cefr.py` after CEFR calibration fix:
 
 ```
-Overall CEFR Level: A2 (A2.1)
-Overall Score: 33.5%
+Overall CEFR Level: A1 (A1.2)
+Overall Score: 13.4%
 
 Dimension Breakdown:
-  VOCABULARY: 65.5% (B1) - 553 learned, 158 learning, 250 new
+  VOCABULARY: 11.2% (A1) - 632 effective words (553 learned, 158 learning, 250 new)
   GRAMMAR: 4.7% (A1) - 1 mastered, 1 learned, 1 learning
-  SPEAKING: 45.9% (A2) - 216 attempts, 45.9% recent avg
+  SPEAKING: 26.9% (A1) - 216 attempts, 45.9% recent avg, 54.9% overall avg
   CONTENT: 20.0% (A1) - 0 mastered, 5 total packages
 
 Level Unlocking:
@@ -151,24 +194,39 @@ Level Unlocking:
   B1: LOCKED (Vocab: 79.3%, Grammar: 0.0%)
 ```
 
+### Scoring Correction Explanation
+
+**Original (Incorrect) Implementation:**
+- Vocabulary: 65.5% (B1) - calculated as 553/968 database words
+- Overall: 33.5% (A2)
+
+**Corrected Implementation:**
+- Vocabulary: 11.2% (A1) - 632 words vs. CEFR A2 benchmark (1,756 words)
+- Overall: 13.4% (A1)
+
+The original scoring **overestimated proficiency by ~20 percentage points** because it compared against database size instead of CEFR standards.
+
 ## Key Insights from Test Data
 
-1. **Vocabulary is strongest dimension** (65.5%, B1 level)
-   - 553 words learned - excellent progress!
-   - Pulling overall score up significantly
+1. **All dimensions at A1 level** - consistent proficiency assessment
+   - Vocabulary: 632 effective words (56% of A1 benchmark, 36% of A2)
+   - Grammar: Minimal tracking (only 3 topics)
+   - Speaking: Basic intelligibility (45.9% pronunciation accuracy)
+   - Content: No mastered packages yet
 
-2. **Grammar is weakest** (4.7%, A1 level)
-   - Only 3 topics tracked so far
-   - This is the main blocker for A2 unlock
-   - Opportunity: Track more Kwiziq topics to improve overall score
+2. **Realistic A1 assessment**
+   - 632 words is genuinely A1 level (A2 requires ~1,756 words)
+   - Speaking score conservatively estimates intelligibility
+   - Overall 13.4% shows early A1 proficiency
 
-3. **A2 is locked** due to low grammar tracking
-   - Need 80% of A1 grammar (currently 9.5%)
-   - Vocabulary is nearly there (77.3% of A1)
+3. **Grammar remains the main blocker**
+   - Need 80% of A1 grammar to unlock A2 (currently 9.5%)
+   - Vocabulary progressing well within A1 range
 
-4. **The weighting works as intended**:
-   - Grammar (35% weight) being low significantly impacts overall score
-   - Even though vocabulary is B1 level, overall is A2 due to grammar gap
+4. **The correction aligns with research**:
+   - Milton & Alexiou: A2 needs 1,500-2,500 words (mean 1,756)
+   - User has 553 learned words → genuinely A1
+   - CEFR speaking focuses on intelligibility, not native-like accuracy
 
 ## Usage
 

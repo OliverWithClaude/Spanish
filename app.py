@@ -840,6 +840,9 @@ Progress to next level: {'█' * int(result['overall_score'] / 10)}{'░' * (10 
 
 {'█' * int(vocab_dim['score'] / 10)}{'░' * (10 - int(vocab_dim['score'] / 10))}
 
+📊 {vocab_dim['effective_word_count']} effective words
+🎯 Target for next level: {vocab_dim['target_benchmark']} words
+
 ✓ {vocab_dim['learned']} learned
 📖 {vocab_dim['learning']} learning
 ⭕ {vocab_dim['new']} new
