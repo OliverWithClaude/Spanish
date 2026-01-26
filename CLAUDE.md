@@ -52,6 +52,8 @@ ollama pull llama3.2
 
 **Content Discovery**: Paste text → `analyze_content()` → tokenize/lemmatize → compare against user vocabulary → create package → `add_package_words_to_vocabulary()`
 
+**Grammar Progress Tracking**: User marks Kwiziq topics as learned → `update_grammar_progress()` → stores status (new/learning/learned/mastered) → `get_grammar_progress_summary()` → displays progress by CEFR level and category in Progress tab
+
 ### State Management
 
 Global variables in `app.py` track session state:
@@ -66,6 +68,8 @@ Core tables: `sections`, `units`, `vocabulary`, `vocabulary_progress` (SM-2), `p
 DELE tables: `dele_topics`, `dele_topic_vocabulary`, `dele_core_vocabulary`
 
 Content Discovery tables: `content_packages`, `package_vocabulary`, `input_tracking`
+
+Grammar Tracking tables: `grammar_topics`, `grammar_dependencies`, `grammar_user_progress`, `word_forms`, `morphology_rules`, `grammar_coverage`, `grammar_practice_log`
 
 XP thresholds: Level 1 = 0 XP, Level 5 = 1,000 XP (A1.2 unlock), Level 10 = 3,000 XP (A2.1 unlock)
 
@@ -160,6 +164,56 @@ Greetings, Personal Info, Numbers, Time & Dates, Family, Colors, Basic Verbs, Ba
 ### Add Missing Words
 
 The "Add Missing Words" button adds all DELE vocabulary not yet in your database. Words are added with status `new` - practice them in the Vocabulary tab to increase your readiness score.
+
+## Grammar Progress Tracking (Kwiziq Brain Map)
+
+The Progress tab includes a grammar tracking system aligned with Kwiziq's brain map structure, allowing you to track grammar topics you've mastered.
+
+### Features
+
+- **43 Grammar Topics** imported across A1-B1 CEFR levels
+- **Progress Summary** showing breakdown by status (new/learning/learned/mastered)
+- **CEFR Level Breakdown** with progress bars for A1, A2, B1
+- **Category Breakdown** by grammar type (verbs, nouns, adjectives, pronouns, articles, syntax)
+- **Topic Dependencies** mapped (prerequisites that must be learned first)
+
+### Database Setup
+
+Run the setup script to initialize grammar topics:
+```bash
+python setup_grammar_database.py
+```
+
+This imports 43 topics from `SPANISH_GRAMMAR_TAXONOMY.json` into the database.
+
+### Usage
+
+1. Navigate to the **Progress** tab in the app
+2. Scroll down to the "Grammar Progress (Kwiziq Brain Map)" section
+3. View your current progress summary
+4. Filter topics by CEFR level (A1, A2, B1, or All)
+5. Select a topic from the dropdown
+6. Set its status: new → learning → learned → mastered
+7. Click "Update Status"
+
+### Status Levels
+
+- **new** (0% proficiency) - Haven't learned yet
+- **learning** (30% proficiency) - Currently studying
+- **learned** (70% proficiency) - Practiced and familiar
+- **mastered** (100% proficiency) - Fully mastered
+
+### Integration with Kwiziq
+
+Check your progress on Kwiziq.com and manually update corresponding topics in HablaConmigo to maintain synchronized tracking.
+
+### Related Files
+
+- `SPANISH_GRAMMAR_TAXONOMY.json` - Complete taxonomy with 43 topics and dependencies
+- `IMPLEMENTATION_SCHEMA.sql` - Database schema for grammar tables
+- `setup_grammar_database.py` - Script to import topics into database
+- `test_grammar_ui.py` - Test suite for grammar progress functions
+- `PHASE_3_COMPLETE.md` - Full implementation documentation
 
 ## Testing Notes
 

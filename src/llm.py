@@ -200,7 +200,14 @@ INCLUDE these (skip: false):
 - Adjectives → provide MASCULINE SINGULAR (muchas → mucho, altas → alto)
 - Adverbs → keep as-is (muy, más, también, ahora)
 
-CRITICAL RULES:
+CRITICAL ENGLISH TRANSLATION RULES:
+1. English translations must ALWAYS be in BASE/INFINITIVE form
+2. For verbs: use "to [verb]" (mantener → "to maintain", NOT "they maintain" or "he maintains")
+3. For nouns: use singular form (libros → "book", NOT "books")
+4. For adjectives: use base form (altas → "tall", NOT "tall ones")
+5. NEVER use conjugated forms (I, you, he, she, it, they, we) in English translations
+
+CRITICAL SPANISH RULES:
 1. If a word is ALREADY in its base/dictionary form, keep it unchanged (poema → poema, NOT poesía)
 2. Do NOT change a word to a DIFFERENT word - only remove inflections (plural→singular, conjugated→infinitive)
 3. "poema" and "poesía" are DIFFERENT words - do not substitute one for the other
@@ -208,7 +215,8 @@ CRITICAL RULES:
 
 EXAMPLES:
 - "sienta" → {"spanish": "sienta", "base_form": "sentar", "english": "to sit", "pos": "verb", "skip": false}
-- "miran" → {"spanish": "miran", "base_form": "mirar", "english": "to look/watch", "pos": "verb", "skip": false}
+- "miran" → {"spanish": "miran", "base_form": "mirar", "english": "to look", "pos": "verb", "skip": false}
+- "mantienen" → {"spanish": "mantienen", "base_form": "mantener", "english": "to maintain", "pos": "verb", "skip": false}
 - "poema" → {"spanish": "poema", "base_form": "poema", "english": "poem", "pos": "noun", "skip": false}
 - "poemas" → {"spanish": "poemas", "base_form": "poema", "english": "poem", "pos": "noun", "skip": false}
 - "personas" → {"spanish": "personas", "base_form": "persona", "english": "person", "pos": "noun", "skip": false}

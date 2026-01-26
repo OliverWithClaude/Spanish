@@ -1687,6 +1687,312 @@ def get_input_stats() -> dict:
     return stats
 
 
+# ============ Grammar Progress Functions ============
+
+def get_grammar_topics(cefr_level=None, category=None):
+    """Get grammar topics, optionally filtered by CEFR level and/or category
+
+    Args:
+        cefr_level: Filter by CEFR level (A1, A2, B1, etc.)
+        category: Filter by category (verbs, nouns, adjectives, etc.)
+
+    Returns:
+        List of grammar topic dictionaries
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    query = """
+        SELECT
+            id, title, cefr_level, cefr_sublevel,
+            category, subcategory,
+            morphological_rule, applies_to_pos, multiplier,
+            difficulty, frequency, high_priority,
+            description, examples_json, notes
+        FROM grammar_topics
+        WHERE 1=1
+    """
+    params = []
+
+    if cefr_level:
+        query += " AND cefr_level = ?"
+        params.append(cefr_level)
+
+    if category:
+        query += " AND category = ?"
+        params.append(category)
+
+    query += " ORDER BY cefr_level, category, subcategory, id"
+
+    cursor.execute(query, params)
+    topics = []
+
+    for row in cursor.fetchall():
+        topic = dict(row)
+        # Parse examples JSON
+        if topic['examples_json']:
+            try:
+                topic['examples'] = json.loads(topic['examples_json'])
+            except:
+                topic['examples'] = {}
+        else:
+            topic['examples'] = {}
+
+        topics.append(topic)
+
+    conn.close()
+    return topics
+
+
+def get_user_grammar_progress(topic_id=None):
+    """Get user's grammar progress for specific topic or all topics
+
+    Args:
+        topic_id: Optional specific topic ID to retrieve
+
+    Returns:
+        Dictionary or list of dictionaries with progress data
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if topic_id:
+        cursor.execute("""
+            SELECT
+                grammar_topic_id, status, times_practiced,
+                last_reviewed, first_encountered, proficiency_score
+            FROM grammar_user_progress
+            WHERE grammar_topic_id = ?
+        """, (topic_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return dict(row)
+        else:
+            # Return default values for unpracticed topic
+            return {
+                'grammar_topic_id': topic_id,
+                'status': 'new',
+                'times_practiced': 0,
+                'last_reviewed': None,
+                'first_encountered': None,
+                'proficiency_score': 0
+            }
+    else:
+        cursor.execute("""
+            SELECT
+                grammar_topic_id, status, times_practiced,
+                last_reviewed, first_encountered, proficiency_score
+            FROM grammar_user_progress
+            ORDER BY last_reviewed DESC
+        """)
+
+        progress = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return progress
+
+
+def update_grammar_progress(topic_id, status):
+    """Update user's progress on a grammar topic
+
+    Args:
+        topic_id: Grammar topic ID
+        status: One of: 'new', 'learning', 'learned', 'mastered'
+
+    Returns:
+        True if successful
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Check if progress exists
+    cursor.execute("""
+        SELECT grammar_topic_id FROM grammar_user_progress
+        WHERE grammar_topic_id = ?
+    """, (topic_id,))
+
+    exists = cursor.fetchone() is not None
+
+    # Calculate proficiency score based on status (0-100 scale as per schema)
+    proficiency_map = {
+        'new': 0.0,
+        'learning': 30.0,
+        'learned': 70.0,
+        'mastered': 100.0
+    }
+    proficiency_score = proficiency_map.get(status, 0.0)
+
+    if exists:
+        # Update existing
+        cursor.execute("""
+            UPDATE grammar_user_progress
+            SET status = ?,
+                times_practiced = times_practiced + 1,
+                last_reviewed = CURRENT_TIMESTAMP,
+                proficiency_score = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE grammar_topic_id = ?
+        """, (status, proficiency_score, topic_id))
+    else:
+        # Insert new
+        cursor.execute("""
+            INSERT INTO grammar_user_progress (
+                user_id, grammar_topic_id, status, times_practiced,
+                first_encountered, last_reviewed, proficiency_score
+            ) VALUES (1, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+        """, (topic_id, status, proficiency_score))
+
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_grammar_progress_summary():
+    """Get summary of user's grammar progress across all levels
+
+    Returns:
+        Dictionary with statistics by level and category
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    summary = {
+        'total_topics': 0,
+        'mastered': 0,
+        'learned': 0,
+        'learning': 0,
+        'new': 0,
+        'by_level': {},
+        'by_category': {}
+    }
+
+    # Total topics in database
+    cursor.execute("SELECT COUNT(*) FROM grammar_topics")
+    summary['total_topics'] = cursor.fetchone()[0]
+
+    # Progress by status
+    cursor.execute("""
+        SELECT status, COUNT(*)
+        FROM grammar_user_progress
+        GROUP BY status
+    """)
+
+    for row in cursor.fetchall():
+        status, count = row
+        summary[status] = count
+
+    # Calculate 'new' topics (not in progress table)
+    summary['new'] = summary['total_topics'] - sum([
+        summary.get('mastered', 0),
+        summary.get('learned', 0),
+        summary.get('learning', 0)
+    ])
+
+    # Progress by CEFR level
+    cursor.execute("""
+        SELECT
+            gt.cefr_level,
+            COUNT(*) as total,
+            SUM(CASE WHEN gup.status = 'mastered' THEN 1 ELSE 0 END) as mastered
+        FROM grammar_topics gt
+        LEFT JOIN grammar_user_progress gup ON gt.id = gup.grammar_topic_id
+        GROUP BY gt.cefr_level
+        ORDER BY gt.cefr_level
+    """)
+
+    for row in cursor.fetchall():
+        level, total, mastered = row
+        summary['by_level'][level] = {
+            'total': total,
+            'mastered': mastered or 0,
+            'percentage': round((mastered or 0) / total * 100, 1) if total > 0 else 0
+        }
+
+    # Progress by category
+    cursor.execute("""
+        SELECT
+            gt.category,
+            COUNT(*) as total,
+            SUM(CASE WHEN gup.status = 'mastered' THEN 1 ELSE 0 END) as mastered
+        FROM grammar_topics gt
+        LEFT JOIN grammar_user_progress gup ON gt.id = gup.grammar_topic_id
+        GROUP BY gt.category
+        ORDER BY gt.category
+    """)
+
+    for row in cursor.fetchall():
+        category, total, mastered = row
+        summary['by_category'][category] = {
+            'total': total,
+            'mastered': mastered or 0,
+            'percentage': round((mastered or 0) / total * 100, 1) if total > 0 else 0
+        }
+
+    conn.close()
+    return summary
+
+
+def get_grammar_topics_with_progress(cefr_level=None):
+    """Get grammar topics with user progress merged
+
+    Args:
+        cefr_level: Optional CEFR level filter
+
+    Returns:
+        List of topics with progress data
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    query = """
+        SELECT
+            gt.id, gt.title, gt.cefr_level, gt.cefr_sublevel,
+            gt.category, gt.subcategory,
+            gt.morphological_rule, gt.difficulty, gt.frequency,
+            gt.high_priority, gt.description, gt.examples_json,
+            gup.status,
+            gup.times_practiced,
+            gup.last_reviewed
+        FROM grammar_topics gt
+        LEFT JOIN grammar_user_progress gup ON gt.id = gup.grammar_topic_id
+        WHERE 1=1
+    """
+    params = []
+
+    if cefr_level:
+        query += " AND gt.cefr_level = ?"
+        params.append(cefr_level)
+
+    query += " ORDER BY gt.cefr_level, gt.category, gt.subcategory, gt.id"
+
+    cursor.execute(query, params)
+
+    topics = []
+    for row in cursor.fetchall():
+        topic = dict(row)
+
+        # Parse examples JSON
+        if topic['examples_json']:
+            try:
+                topic['examples'] = json.loads(topic['examples_json'])
+            except:
+                topic['examples'] = {}
+        else:
+            topic['examples'] = {}
+
+        # Rename status to mastery_level for consistency with UI
+        topic['mastery_level'] = topic.get('status', 'new') or 'new'
+
+        if not topic['times_practiced']:
+            topic['times_practiced'] = 0
+
+        topics.append(topic)
+
+    conn.close()
+    return topics
+
+
 if __name__ == "__main__":
     print("Initializing database...")
     init_database()

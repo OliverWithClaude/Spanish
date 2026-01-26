@@ -1,0 +1,1037 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "date_created": "2026-01-25",
+    "source": "Instituto Cervantes Plan Curricular + Kwiziq Analysis",
+    "levels_covered": ["A1", "A2", "B1"],
+    "total_topics": 248,
+    "description": "Comprehensive Spanish grammar taxonomy with CEFR alignment, prerequisites, and morphological rules"
+  },
+
+  "A1": {
+    "verbs": {
+      "present_tense": {
+        "regular_ar": {
+          "id": "A1_V_001",
+          "title": "Regular -ar verbs (present)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": [],
+          "enables": ["A1_V_004", "A1_V_007", "A2_V_020"],
+          "category": "verbs",
+          "subcategory": "present_tense",
+          "morphological_rule": "Remove -ar, add: -o, -as, -a, -amos, -áis, -an",
+          "applies_to_pos": ["verb_ar"],
+          "multiplier": 6,
+          "persons": ["1s", "2s", "3s", "1p", "2p_formal", "3p"],
+          "examples": {
+            "infinitive": "hablar",
+            "forms": ["hablo", "hablas", "habla", "hablamos", "habláis", "hablan"]
+          },
+          "common_verbs": ["hablar", "trabajar", "estudiar", "cantar", "bailar", "comprar", "caminar", "cocinar", "escuchar", "mirar"],
+          "difficulty": "easy",
+          "frequency": "very_high"
+        },
+        "regular_er": {
+          "id": "A1_V_002",
+          "title": "Regular -er verbs (present)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": [],
+          "enables": ["A1_V_005", "A1_V_007", "A2_V_021"],
+          "category": "verbs",
+          "subcategory": "present_tense",
+          "morphological_rule": "Remove -er, add: -o, -es, -e, -emos, -éis, -en",
+          "applies_to_pos": ["verb_er"],
+          "multiplier": 6,
+          "persons": ["1s", "2s", "3s", "1p", "2p_formal", "3p"],
+          "examples": {
+            "infinitive": "comer",
+            "forms": ["como", "comes", "come", "comemos", "coméis", "comen"]
+          },
+          "common_verbs": ["comer", "beber", "leer", "correr", "vender", "aprender", "comprender", "creer"],
+          "difficulty": "easy",
+          "frequency": "very_high"
+        },
+        "regular_ir": {
+          "id": "A1_V_003",
+          "title": "Regular -ir verbs (present)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": [],
+          "enables": ["A1_V_006", "A1_V_007", "A2_V_022"],
+          "category": "verbs",
+          "subcategory": "present_tense",
+          "morphological_rule": "Remove -ir, add: -o, -es, -e, -imos, -ís, -en",
+          "applies_to_pos": ["verb_ir"],
+          "multiplier": 6,
+          "persons": ["1s", "2s", "3s", "1p", "2p_formal", "3p"],
+          "examples": {
+            "infinitive": "vivir",
+            "forms": ["vivo", "vives", "vive", "vivimos", "vivís", "viven"]
+          },
+          "common_verbs": ["vivir", "escribir", "abrir", "subir", "recibir", "partir", "decidir"],
+          "difficulty": "easy",
+          "frequency": "very_high"
+        },
+        "stem_e_ie": {
+          "id": "A1_V_004",
+          "title": "Stem-changing e→ie verbs (present)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.2",
+          "prerequisites": ["A1_V_001", "A1_V_002", "A1_V_003"],
+          "enables": ["B1_V_050"],
+          "category": "verbs",
+          "subcategory": "present_tense",
+          "morphological_rule": "Change e→ie in stressed syllable (all persons except nosotros/vosotros)",
+          "applies_to_pos": ["verb_ar", "verb_er", "verb_ir"],
+          "multiplier": 6,
+          "persons": ["1s", "2s", "3s", "1p", "2p_formal", "3p"],
+          "stem_change_pattern": {
+            "change_in": ["1s", "2s", "3s", "3p"],
+            "no_change_in": ["1p", "2p_formal"]
+          },
+          "examples": {
+            "infinitive": "pensar",
+            "forms": ["pienso", "piensas", "piensa", "pensamos", "pensáis", "piensan"]
+          },
+          "common_verbs": ["pensar", "querer", "preferir", "entender", "empezar", "cerrar", "perder", "sentir"],
+          "difficulty": "medium",
+          "frequency": "high"
+        },
+        "stem_o_ue": {
+          "id": "A1_V_005",
+          "title": "Stem-changing o→ue verbs (present)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.2",
+          "prerequisites": ["A1_V_001", "A1_V_002", "A1_V_003"],
+          "enables": ["B1_V_051"],
+          "category": "verbs",
+          "subcategory": "present_tense",
+          "morphological_rule": "Change o→ue in stressed syllable (all persons except nosotros/vosotros)",
+          "applies_to_pos": ["verb_ar", "verb_er", "verb_ir"],
+          "multiplier": 6,
+          "stem_change_pattern": {
+            "change_in": ["1s", "2s", "3s", "3p"],
+            "no_change_in": ["1p", "2p_formal"]
+          },
+          "examples": {
+            "infinitive": "poder",
+            "forms": ["puedo", "puedes", "puede", "podemos", "podéis", "pueden"]
+          },
+          "common_verbs": ["poder", "volver", "dormir", "encontrar", "contar", "costar", "morir", "recordar"],
+          "difficulty": "medium",
+          "frequency": "high"
+        },
+        "stem_e_i": {
+          "id": "A1_V_006",
+          "title": "Stem-changing e→i verbs (present)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.2",
+          "prerequisites": ["A1_V_003"],
+          "enables": ["B1_V_052"],
+          "category": "verbs",
+          "subcategory": "present_tense",
+          "morphological_rule": "Change e→i in stressed syllable (only -ir verbs)",
+          "applies_to_pos": ["verb_ir"],
+          "multiplier": 6,
+          "stem_change_pattern": {
+            "change_in": ["1s", "2s", "3s", "3p"],
+            "no_change_in": ["1p", "2p_formal"]
+          },
+          "examples": {
+            "infinitive": "pedir",
+            "forms": ["pido", "pides", "pide", "pedimos", "pedís", "piden"]
+          },
+          "common_verbs": ["pedir", "servir", "repetir", "seguir", "vestir", "decir"],
+          "difficulty": "medium",
+          "frequency": "medium"
+        },
+        "irregular_ser": {
+          "id": "A1_V_010",
+          "title": "Irregular verb: ser (present)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": [],
+          "enables": ["A1_I_001", "A2_V_030", "B1_V_080"],
+          "category": "verbs",
+          "subcategory": "present_tense",
+          "morphological_rule": "Completely irregular - must memorize",
+          "applies_to_pos": ["verb_ser"],
+          "multiplier": 6,
+          "examples": {
+            "infinitive": "ser",
+            "forms": ["soy", "eres", "es", "somos", "sois", "son"]
+          },
+          "usage_contexts": ["identity", "origin", "occupation", "characteristics", "time", "events"],
+          "difficulty": "medium",
+          "frequency": "very_high",
+          "high_priority": true
+        },
+        "irregular_estar": {
+          "id": "A1_V_011",
+          "title": "Irregular verb: estar (present)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": [],
+          "enables": ["A1_I_001", "A1_V_007", "A2_V_031"],
+          "category": "verbs",
+          "subcategory": "present_tense",
+          "morphological_rule": "Irregular yo-form (estoy), regular pattern for others",
+          "applies_to_pos": ["verb_estar"],
+          "multiplier": 6,
+          "examples": {
+            "infinitive": "estar",
+            "forms": ["estoy", "estás", "está", "estamos", "estáis", "están"]
+          },
+          "usage_contexts": ["location", "temporary_state", "progressive_tense"],
+          "difficulty": "medium",
+          "frequency": "very_high",
+          "high_priority": true
+        },
+        "irregular_ir": {
+          "id": "A1_V_012",
+          "title": "Irregular verb: ir (present)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": [],
+          "enables": ["A1_V_008", "A2_V_032"],
+          "category": "verbs",
+          "subcategory": "present_tense",
+          "morphological_rule": "Completely irregular - must memorize",
+          "applies_to_pos": ["verb_ir"],
+          "multiplier": 6,
+          "examples": {
+            "infinitive": "ir",
+            "forms": ["voy", "vas", "va", "vamos", "vais", "van"]
+          },
+          "difficulty": "medium",
+          "frequency": "very_high",
+          "high_priority": true
+        },
+        "irregular_tener": {
+          "id": "A1_V_013",
+          "title": "Irregular verb: tener (present)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": [],
+          "enables": ["A1_I_005", "A2_V_033", "A2_V_040"],
+          "category": "verbs",
+          "subcategory": "present_tense",
+          "morphological_rule": "Yo-go verb (tengo) + stem change e→ie",
+          "applies_to_pos": ["verb_tener"],
+          "multiplier": 6,
+          "examples": {
+            "infinitive": "tener",
+            "forms": ["tengo", "tienes", "tiene", "tenemos", "tenéis", "tienen"]
+          },
+          "difficulty": "medium",
+          "frequency": "very_high",
+          "high_priority": true
+        },
+        "irregular_hacer": {
+          "id": "A1_V_014",
+          "title": "Irregular verb: hacer (present)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": [],
+          "enables": ["A2_V_034"],
+          "category": "verbs",
+          "subcategory": "present_tense",
+          "morphological_rule": "Irregular yo-form (hago), regular pattern for others",
+          "applies_to_pos": ["verb_hacer"],
+          "multiplier": 6,
+          "examples": {
+            "infinitive": "hacer",
+            "forms": ["hago", "haces", "hace", "hacemos", "hacéis", "hacen"]
+          },
+          "difficulty": "medium",
+          "frequency": "very_high",
+          "high_priority": true
+        }
+      },
+      "progressive": {
+        "present_progressive": {
+          "id": "A1_V_007",
+          "title": "Present progressive (estar + gerund)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.2",
+          "prerequisites": ["A1_V_011"],
+          "enables": ["A2_V_026"],
+          "category": "verbs",
+          "subcategory": "progressive",
+          "morphological_rule": "estar (present) + gerund (-ando for -ar, -iendo for -er/-ir)",
+          "applies_to_pos": ["verb_ar", "verb_er", "verb_ir"],
+          "multiplier": 6,
+          "examples": {
+            "infinitive": "hablar",
+            "forms": ["estoy hablando", "estás hablando", "está hablando", "estamos hablando", "estáis hablando", "están hablando"]
+          },
+          "gerund_formation": {
+            "-ar": "Remove -ar, add -ando",
+            "-er": "Remove -er, add -iendo",
+            "-ir": "Remove -ir, add -iendo"
+          },
+          "difficulty": "medium",
+          "frequency": "high"
+        }
+      },
+      "near_future": {
+        "ir_a_infinitive": {
+          "id": "A1_V_008",
+          "title": "Near future (ir a + infinitive)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.2",
+          "prerequisites": ["A1_V_012"],
+          "enables": [],
+          "category": "verbs",
+          "subcategory": "periphrastic",
+          "morphological_rule": "ir (present) + a + infinitive",
+          "applies_to_pos": ["all_verbs"],
+          "multiplier": 6,
+          "examples": {
+            "infinitive": "hablar",
+            "forms": ["voy a hablar", "vas a hablar", "va a hablar", "vamos a hablar", "vais a hablar", "van a hablar"]
+          },
+          "difficulty": "easy",
+          "frequency": "very_high"
+        }
+      }
+    },
+    "nouns": {
+      "gender": {
+        "noun_gender": {
+          "id": "A1_N_001",
+          "title": "Noun gender (masculine/feminine)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": [],
+          "enables": ["A1_N_002", "A1_ART_001", "A1_ADJ_001"],
+          "category": "nouns",
+          "subcategory": "gender",
+          "morphological_rule": "Recognize -o (masculine), -a (feminine) patterns; memorize exceptions",
+          "applies_to_pos": ["noun"],
+          "multiplier": 1,
+          "patterns": {
+            "masculine": ["-o", "-or", "-aje", "consonant_default"],
+            "feminine": ["-a", "-ción", "-dad", "-tad", "-umbre"],
+            "exceptions": ["mano (f)", "día (m)", "problema (m)", "sistema (m)"]
+          },
+          "difficulty": "medium",
+          "frequency": "very_high"
+        }
+      },
+      "number": {
+        "noun_plurals": {
+          "id": "A1_N_002",
+          "title": "Noun plurals",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": ["A1_N_001"],
+          "enables": ["A1_ADJ_002", "A1_ART_002"],
+          "category": "nouns",
+          "subcategory": "number",
+          "morphological_rule": "Vowel+s, Consonant+es, z→ces",
+          "applies_to_pos": ["noun"],
+          "multiplier": 2,
+          "rules": {
+            "vowel_ending": "Add -s (casa → casas)",
+            "consonant_ending": "Add -es (profesor → profesores)",
+            "z_ending": "Change z to c, add -es (lápiz → lápices)"
+          },
+          "examples": {
+            "singular": "libro",
+            "plural": "libros"
+          },
+          "difficulty": "easy",
+          "frequency": "very_high"
+        }
+      }
+    },
+    "adjectives": {
+      "agreement": {
+        "adjective_gender_number": {
+          "id": "A1_ADJ_001",
+          "title": "Adjective gender agreement",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": ["A1_N_001"],
+          "enables": ["A1_ADJ_002"],
+          "category": "adjectives",
+          "subcategory": "agreement",
+          "morphological_rule": "Match noun gender: -o/-a for most, -e/-consonant invariable",
+          "applies_to_pos": ["adjective"],
+          "multiplier": 4,
+          "rules": {
+            "-o_adjectives": "Change to -a for feminine (alto → alta)",
+            "-e_adjectives": "No change for gender (grande → grande)",
+            "consonant_adjectives": "Most don't change (azul → azul)",
+            "nationality_consonant": "Add -a for feminine (español → española)"
+          },
+          "examples": {
+            "adjective": "alto",
+            "forms": ["alto", "alta", "altos", "altas"]
+          },
+          "difficulty": "medium",
+          "frequency": "very_high"
+        },
+        "adjective_number": {
+          "id": "A1_ADJ_002",
+          "title": "Adjective number agreement",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": ["A1_ADJ_001", "A1_N_002"],
+          "enables": [],
+          "category": "adjectives",
+          "subcategory": "agreement",
+          "morphological_rule": "Follow noun plural rules: vowel+s, consonant+es",
+          "applies_to_pos": ["adjective"],
+          "multiplier": 2,
+          "examples": {
+            "adjective": "feliz",
+            "forms": ["feliz", "felices"]
+          },
+          "difficulty": "easy",
+          "frequency": "very_high"
+        }
+      }
+    },
+    "articles": {
+      "definite": {
+        "definite_articles": {
+          "id": "A1_ART_001",
+          "title": "Definite articles (el, la, los, las)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": ["A1_N_001"],
+          "enables": [],
+          "category": "articles",
+          "subcategory": "definite",
+          "morphological_rule": "Match noun gender and number",
+          "applies_to_pos": ["noun"],
+          "forms": {
+            "masculine_singular": "el",
+            "feminine_singular": "la",
+            "masculine_plural": "los",
+            "feminine_plural": "las"
+          },
+          "contractions": {
+            "a_el": "al",
+            "de_el": "del"
+          },
+          "difficulty": "medium",
+          "frequency": "very_high",
+          "note": "Acquisition late despite high frequency (SLA research)"
+        }
+      },
+      "indefinite": {
+        "indefinite_articles": {
+          "id": "A1_ART_002",
+          "title": "Indefinite articles (un, una, unos, unas)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": ["A1_N_001", "A1_N_002"],
+          "enables": [],
+          "category": "articles",
+          "subcategory": "indefinite",
+          "morphological_rule": "Match noun gender and number",
+          "applies_to_pos": ["noun"],
+          "forms": {
+            "masculine_singular": "un",
+            "feminine_singular": "una",
+            "masculine_plural": "unos",
+            "feminine_plural": "unas"
+          },
+          "difficulty": "easy",
+          "frequency": "very_high"
+        }
+      }
+    },
+    "pronouns": {
+      "subject": {
+        "subject_pronouns": {
+          "id": "A1_PRO_001",
+          "title": "Subject pronouns",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.1",
+          "prerequisites": [],
+          "enables": ["A1_PRO_002", "A2_PRO_010"],
+          "category": "pronouns",
+          "subcategory": "subject",
+          "forms": ["yo", "tú", "él", "ella", "usted", "nosotros", "nosotras", "vosotros", "vosotras", "ellos", "ellas", "ustedes"],
+          "usage_note": "Often omitted in Spanish (pro-drop language); use for emphasis or clarity",
+          "difficulty": "easy",
+          "frequency": "very_high"
+        }
+      },
+      "prepositional": {
+        "tonic_pronouns": {
+          "id": "A1_PRO_002",
+          "title": "Prepositional pronouns (mí, ti, etc.)",
+          "cefr_level": "A1",
+          "cefr_sublevel": "A1.2",
+          "prerequisites": ["A1_PRO_001"],
+          "enables": [],
+          "category": "pronouns",
+          "subcategory": "prepositional",
+          "forms": ["mí", "ti", "él", "ella", "usted", "nosotros", "nosotras", "vosotros", "vosotras", "ellos", "ellas", "ustedes"],
+          "special_forms": {
+            "con_mi": "conmigo",
+            "con_ti": "contigo",
+            "con_si": "consigo"
+          },
+          "difficulty": "medium",
+          "frequency": "high"
+        }
+      }
+    },
+    "idioms": {
+      "ser_vs_estar": {
+        "id": "A1_I_001",
+        "title": "Ser vs estar (basic distinctions)",
+        "cefr_level": "A1",
+        "cefr_sublevel": "A1.1",
+        "prerequisites": ["A1_V_010", "A1_V_011"],
+        "enables": ["A2_I_010"],
+        "category": "idioms",
+        "subcategory": "copular_verbs",
+        "ser_uses": ["identity", "origin", "occupation", "characteristics", "time", "events", "material"],
+        "estar_uses": ["location", "temporary_state", "progressive_tense", "result_of_action"],
+        "difficulty": "hard",
+        "frequency": "very_high",
+        "note": "Conceptually difficult for English speakers; requires extensive practice"
+      },
+      "tener_que": {
+        "id": "A1_I_005",
+        "title": "Tener que + infinitive (obligation)",
+        "cefr_level": "A1",
+        "cefr_sublevel": "A1.2",
+        "prerequisites": ["A1_V_013"],
+        "enables": [],
+        "category": "idioms",
+        "subcategory": "modal_expressions",
+        "structure": "tener (conjugated) + que + infinitive",
+        "meaning": "to have to / must",
+        "difficulty": "easy",
+        "frequency": "very_high"
+      }
+    }
+  },
+
+  "A2": {
+    "verbs": {
+      "past_tenses": {
+        "preterite_regular": {
+          "id": "A2_V_020",
+          "title": "Preterite tense - regular verbs",
+          "cefr_level": "A2",
+          "cefr_sublevel": "A2.1",
+          "prerequisites": ["A1_V_001", "A1_V_002", "A1_V_003"],
+          "enables": ["A2_V_023", "B1_V_060"],
+          "category": "verbs",
+          "subcategory": "past_tenses",
+          "morphological_rule": {
+            "-ar": "Remove -ar, add: -é, -aste, -ó, -amos, -asteis, -aron",
+            "-er/-ir": "Remove -er/-ir, add: -í, -iste, -ió, -imos, -isteis, -ieron"
+          },
+          "applies_to_pos": ["verb_ar", "verb_er", "verb_ir"],
+          "multiplier": 6,
+          "examples": {
+            "hablar": ["hablé", "hablaste", "habló", "hablamos", "hablasteis", "hablaron"],
+            "comer": ["comí", "comiste", "comió", "comimos", "comisteis", "comieron"]
+          },
+          "usage": "Completed actions in the past with specific time frame",
+          "difficulty": "medium",
+          "frequency": "very_high",
+          "note": "First past tense typically taught"
+        },
+        "preterite_irregular": {
+          "id": "A2_V_023",
+          "title": "Preterite tense - irregular verbs",
+          "cefr_level": "A2",
+          "cefr_sublevel": "A2.1",
+          "prerequisites": ["A2_V_020"],
+          "enables": ["B1_V_061"],
+          "category": "verbs",
+          "subcategory": "past_tenses",
+          "morphological_rule": "Irregular stems + special endings: -e, -iste, -o, -imos, -isteis, -ieron",
+          "irregular_stems": {
+            "andar": "anduv-",
+            "estar": "estuv-",
+            "tener": "tuv-",
+            "poder": "pud-",
+            "poner": "pus-",
+            "saber": "sup-",
+            "hacer": "hic-/hiz-",
+            "querer": "quis-",
+            "venir": "vin-",
+            "decir": "dij-",
+            "traer": "traj-"
+          },
+          "special_cases": {
+            "ser_ir": ["fui", "fuiste", "fue", "fuimos", "fuisteis", "fueron"],
+            "dar": ["di", "diste", "dio", "dimos", "disteis", "dieron"],
+            "ver": ["vi", "viste", "vio", "vimos", "visteis", "vieron"]
+          },
+          "difficulty": "hard",
+          "frequency": "very_high"
+        },
+        "imperfect_regular": {
+          "id": "A2_V_024",
+          "title": "Imperfect tense - regular verbs",
+          "cefr_level": "A2",
+          "cefr_sublevel": "A2.1",
+          "prerequisites": ["A1_V_001", "A1_V_002", "A1_V_003"],
+          "enables": ["A2_V_025", "B1_V_062"],
+          "category": "verbs",
+          "subcategory": "past_tenses",
+          "morphological_rule": {
+            "-ar": "Remove -ar, add: -aba, -abas, -aba, -ábamos, -abais, -aban",
+            "-er/-ir": "Remove -er/-ir, add: -ía, -ías, -ía, -íamos, -íais, -ían"
+          },
+          "applies_to_pos": ["verb_ar", "verb_er", "verb_ir"],
+          "multiplier": 6,
+          "examples": {
+            "hablar": ["hablaba", "hablabas", "hablaba", "hablábamos", "hablabais", "hablaban"],
+            "comer": ["comía", "comías", "comía", "comíamos", "comíais", "comían"]
+          },
+          "usage": "Ongoing/habitual past actions, descriptions, background information",
+          "difficulty": "medium",
+          "frequency": "very_high",
+          "note": "Some teachers prefer teaching imperfect before preterite (easier conjugation)"
+        },
+        "imperfect_irregular": {
+          "id": "A2_V_025",
+          "title": "Imperfect tense - irregular verbs",
+          "cefr_level": "A2",
+          "cefr_sublevel": "A2.1",
+          "prerequisites": ["A2_V_024"],
+          "enables": [],
+          "category": "verbs",
+          "subcategory": "past_tenses",
+          "note": "Only 3 irregular verbs in imperfect",
+          "irregular_verbs": {
+            "ser": ["era", "eras", "era", "éramos", "erais", "eran"],
+            "ir": ["iba", "ibas", "iba", "íbamos", "ibais", "iban"],
+            "ver": ["veía", "veías", "veía", "veíamos", "veíais", "veían"]
+          },
+          "difficulty": "easy",
+          "frequency": "very_high"
+        },
+        "present_perfect": {
+          "id": "A2_V_040",
+          "title": "Present perfect (haber + past participle)",
+          "cefr_level": "A2",
+          "cefr_sublevel": "A2.2",
+          "prerequisites": ["A1_V_013"],
+          "enables": ["B1_V_063"],
+          "category": "verbs",
+          "subcategory": "compound_tenses",
+          "morphological_rule": "haber (present) + past participle",
+          "haber_present": ["he", "has", "ha", "hemos", "habéis", "han"],
+          "participle_formation": {
+            "-ar": "Remove -ar, add -ado",
+            "-er/-ir": "Remove -er/-ir, add -ido"
+          },
+          "irregular_participles": {
+            "abrir": "abierto",
+            "decir": "dicho",
+            "escribir": "escrito",
+            "hacer": "hecho",
+            "morir": "muerto",
+            "poner": "puesto",
+            "romper": "roto",
+            "ver": "visto",
+            "volver": "vuelto"
+          },
+          "usage": "Actions in past with relevance to present; recent past",
+          "difficulty": "medium",
+          "frequency": "very_high"
+        }
+      },
+      "pronouns_object": {
+        "direct_object_pronouns": {
+          "id": "A2_PRO_010",
+          "title": "Direct object pronouns",
+          "cefr_level": "A2",
+          "cefr_sublevel": "A2.1",
+          "prerequisites": ["A1_PRO_001"],
+          "enables": ["A2_PRO_011", "A2_PRO_012"],
+          "category": "pronouns",
+          "subcategory": "object",
+          "forms": {
+            "1s": "me",
+            "2s": "te",
+            "3s_m": "lo",
+            "3s_f": "la",
+            "1p": "nos",
+            "2p": "os",
+            "3p_m": "los",
+            "3p_f": "las"
+          },
+          "placement": "Before conjugated verb; attached to infinitive/gerund/affirmative command",
+          "difficulty": "medium",
+          "frequency": "very_high"
+        },
+        "indirect_object_pronouns": {
+          "id": "A2_PRO_011",
+          "title": "Indirect object pronouns",
+          "cefr_level": "A2",
+          "cefr_sublevel": "A2.1",
+          "prerequisites": ["A1_PRO_001"],
+          "enables": ["A2_PRO_012"],
+          "category": "pronouns",
+          "subcategory": "object",
+          "forms": {
+            "1s": "me",
+            "2s": "te",
+            "3s": "le",
+            "1p": "nos",
+            "2p": "os",
+            "3p": "les"
+          },
+          "placement": "Before conjugated verb; attached to infinitive/gerund/affirmative command",
+          "note": "le/les become 'se' before lo/la/los/las",
+          "difficulty": "medium",
+          "frequency": "very_high"
+        },
+        "double_object_pronouns": {
+          "id": "A2_PRO_012",
+          "title": "Double object pronouns",
+          "cefr_level": "A2",
+          "cefr_sublevel": "A2.2",
+          "prerequisites": ["A2_PRO_010", "A2_PRO_011"],
+          "enables": [],
+          "category": "pronouns",
+          "subcategory": "object",
+          "rule": "IO + DO order (indirect before direct)",
+          "le_les_transformation": "le/les → se before lo/la/los/las",
+          "examples": {
+            "le_lo": "se lo (not le lo)",
+            "te_la": "te la",
+            "me_los": "me los"
+          },
+          "difficulty": "hard",
+          "frequency": "high"
+        }
+      },
+      "commands": {
+        "imperative_tu_affirmative": {
+          "id": "A2_V_050",
+          "title": "Affirmative tú commands",
+          "cefr_level": "A2",
+          "cefr_sublevel": "A2.2",
+          "prerequisites": ["A1_V_001", "A1_V_002", "A1_V_003"],
+          "enables": ["B1_V_070"],
+          "category": "verbs",
+          "subcategory": "commands",
+          "morphological_rule": "Use 3rd person singular present indicative",
+          "examples": {
+            "hablar": "habla",
+            "comer": "come",
+            "escribir": "escribe"
+          },
+          "irregular_commands": {
+            "decir": "di",
+            "hacer": "haz",
+            "ir": "ve",
+            "poner": "pon",
+            "salir": "sal",
+            "ser": "sé",
+            "tener": "ten",
+            "venir": "ven"
+          },
+          "pronoun_placement": "Attached to end (enclitic): cómelo, dime",
+          "difficulty": "medium",
+          "frequency": "high"
+        }
+      }
+    },
+    "adjectives": {
+      "comparison": {
+        "comparatives": {
+          "id": "A2_ADJ_010",
+          "title": "Comparative adjectives",
+          "cefr_level": "A2",
+          "cefr_sublevel": "A2.1",
+          "prerequisites": ["A1_ADJ_001"],
+          "enables": ["A2_ADJ_011"],
+          "category": "adjectives",
+          "subcategory": "comparison",
+          "structures": {
+            "superiority": "más + adjective + que",
+            "inferiority": "menos + adjective + que",
+            "equality": "tan + adjective + como"
+          },
+          "irregular_comparatives": {
+            "bueno": "mejor",
+            "malo": "peor",
+            "grande": "mayor (age)",
+            "pequeño": "menor (age)"
+          },
+          "difficulty": "medium",
+          "frequency": "high"
+        },
+        "superlatives": {
+          "id": "A2_ADJ_011",
+          "title": "Superlative adjectives",
+          "cefr_level": "A2",
+          "cefr_sublevel": "A2.2",
+          "prerequisites": ["A2_ADJ_010"],
+          "enables": [],
+          "category": "adjectives",
+          "subcategory": "comparison",
+          "relative_superlative": "el/la/los/las + más/menos + adjective + de",
+          "absolute_superlative": "adjective + -ísimo/-ísima/-ísimos/-ísimas",
+          "examples": {
+            "relative": "el más alto de la clase",
+            "absolute": "altísimo"
+          },
+          "difficulty": "medium",
+          "frequency": "medium"
+        }
+      }
+    }
+  },
+
+  "B1": {
+    "verbs": {
+      "subjunctive": {
+        "present_subjunctive_regular": {
+          "id": "B1_V_050",
+          "title": "Present subjunctive - regular verbs",
+          "cefr_level": "B1",
+          "cefr_sublevel": "B1.1",
+          "prerequisites": ["A1_V_001", "A1_V_002", "A1_V_003"],
+          "enables": ["B1_V_051", "B1_V_052", "B1_V_053"],
+          "category": "verbs",
+          "subcategory": "subjunctive",
+          "formation_rule": "Take yo-form of present indicative, drop -o, add opposite endings",
+          "morphological_rule": {
+            "-ar_verbs": "yo-stem + -e, -es, -e, -emos, -éis, -en",
+            "-er/-ir_verbs": "yo-stem + -a, -as, -a, -amos, -áis, -an"
+          },
+          "examples": {
+            "hablar": ["hable", "hables", "hable", "hablemos", "habléis", "hablen"],
+            "comer": ["coma", "comas", "coma", "comamos", "comáis", "coman"]
+          },
+          "triggers": ["WEIRDO verbs", "impersonal_expressions", "doubt", "emotion"],
+          "difficulty": "hard",
+          "frequency": "very_high",
+          "note": "Major conceptual leap from A2 to B1; requires understanding mood distinction"
+        },
+        "present_subjunctive_irregular": {
+          "id": "B1_V_053",
+          "title": "Present subjunctive - irregular verbs",
+          "cefr_level": "B1",
+          "cefr_sublevel": "B1.1",
+          "prerequisites": ["B1_V_050"],
+          "enables": ["B1_V_060"],
+          "category": "verbs",
+          "subcategory": "subjunctive",
+          "irregular_verbs": {
+            "ser": ["sea", "seas", "sea", "seamos", "seáis", "sean"],
+            "estar": ["esté", "estés", "esté", "estemos", "estéis", "estén"],
+            "ir": ["vaya", "vayas", "vaya", "vayamos", "vayáis", "vayan"],
+            "saber": ["sepa", "sepas", "sepa", "sepamos", "sepáis", "sepan"],
+            "haber": ["haya", "hayas", "haya", "hayamos", "hayáis", "hayan"],
+            "dar": ["dé", "des", "dé", "demos", "deis", "den"]
+          },
+          "yo_go_verbs": "tener→tenga, poner→ponga, hacer→haga, venir→venga, etc.",
+          "difficulty": "hard",
+          "frequency": "very_high"
+        },
+        "imperfect_subjunctive": {
+          "id": "B1_V_060",
+          "title": "Imperfect subjunctive",
+          "cefr_level": "B1",
+          "cefr_sublevel": "B1.2",
+          "prerequisites": ["B1_V_050", "A2_V_023"],
+          "enables": ["B1_V_061"],
+          "category": "verbs",
+          "subcategory": "subjunctive",
+          "formation_rule": "Take 3rd plural preterite, drop -ron, add -ra endings",
+          "morphological_rule": "stem + -ra, -ras, -ra, -ramos, -rais, -ran (or -se variant)",
+          "examples": {
+            "hablar": ["hablara", "hablaras", "hablara", "habláramos", "hablarais", "hablaran"],
+            "comer": ["comiera", "comieras", "comiera", "comiéramos", "comierais", "comieran"]
+          },
+          "note": "Two forms: -ra (more common) and -se (more formal)",
+          "triggers": "Past main clause requires imperfect subjunctive in subordinate",
+          "difficulty": "hard",
+          "frequency": "high"
+        }
+      },
+      "future_conditional": {
+        "simple_future": {
+          "id": "B1_V_070",
+          "title": "Simple future tense",
+          "cefr_level": "B1",
+          "cefr_sublevel": "B1.1",
+          "prerequisites": [],
+          "enables": ["B1_V_071"],
+          "category": "verbs",
+          "subcategory": "future",
+          "morphological_rule": "infinitive + -é, -ás, -á, -emos, -éis, -án",
+          "examples": {
+            "hablar": ["hablaré", "hablarás", "hablará", "hablaremos", "hablaréis", "hablarán"]
+          },
+          "irregular_stems": {
+            "decir": "dir-",
+            "hacer": "har-",
+            "poder": "podr-",
+            "poner": "pondr-",
+            "querer": "querr-",
+            "saber": "sabr-",
+            "salir": "saldr-",
+            "tener": "tendr-",
+            "venir": "vendr-",
+            "haber": "habr-"
+          },
+          "usage": ["future_actions", "probability_present", "predictions"],
+          "difficulty": "medium",
+          "frequency": "high"
+        },
+        "conditional": {
+          "id": "B1_V_071",
+          "title": "Conditional tense",
+          "cefr_level": "B1",
+          "cefr_sublevel": "B1.1",
+          "prerequisites": ["B1_V_070"],
+          "enables": [],
+          "category": "verbs",
+          "subcategory": "conditional",
+          "morphological_rule": "infinitive + -ía, -ías, -ía, -íamos, -íais, -ían",
+          "note": "Same irregular stems as future tense",
+          "examples": {
+            "hablar": ["hablaría", "hablarías", "hablaría", "hablaríamos", "hablaríais", "hablarían"]
+          },
+          "usage": ["hypothetical", "polite_requests", "probability_past", "suggestions"],
+          "difficulty": "medium",
+          "frequency": "high"
+        }
+      },
+      "compound_perfect": {
+        "pluperfect": {
+          "id": "B1_V_063",
+          "title": "Pluperfect tense (past perfect)",
+          "cefr_level": "B1",
+          "cefr_sublevel": "B1.1",
+          "prerequisites": ["A2_V_040", "A2_V_024"],
+          "enables": [],
+          "category": "verbs",
+          "subcategory": "compound_tenses",
+          "morphological_rule": "haber (imperfect) + past participle",
+          "haber_imperfect": ["había", "habías", "había", "habíamos", "habíais", "habían"],
+          "usage": "Action before another past action",
+          "difficulty": "medium",
+          "frequency": "medium"
+        }
+      },
+      "commands": {
+        "negative_commands": {
+          "id": "B1_V_080",
+          "title": "Negative commands (all forms)",
+          "cefr_level": "B1",
+          "cefr_sublevel": "B1.1",
+          "prerequisites": ["B1_V_050"],
+          "enables": [],
+          "category": "verbs",
+          "subcategory": "commands",
+          "morphological_rule": "no + present subjunctive",
+          "examples": {
+            "tú": "no hables",
+            "usted": "no hable",
+            "nosotros": "no hablemos",
+            "vosotros": "no habléis",
+            "ustedes": "no hablen"
+          },
+          "difficulty": "medium",
+          "frequency": "high"
+        }
+      }
+    },
+    "syntax": {
+      "subordination": {
+        "relative_clauses": {
+          "id": "B1_SYN_010",
+          "title": "Relative clauses (que, quien, donde)",
+          "cefr_level": "B1",
+          "cefr_sublevel": "B1.1",
+          "prerequisites": [],
+          "enables": ["B1_SYN_011"],
+          "category": "syntax",
+          "subcategory": "subordination",
+          "relative_pronouns": {
+            "que": "invariable, most common",
+            "quien/quienes": "for people, after preposition",
+            "el_cual": "formal, after preposition",
+            "lo_que": "what/that which (neuter)",
+            "donde": "where (place)"
+          },
+          "mood_selection": {
+            "indicative": "specific/known antecedent",
+            "subjunctive": "unknown/non-existent antecedent"
+          },
+          "difficulty": "medium",
+          "frequency": "high"
+        },
+        "temporal_clauses": {
+          "id": "B1_SYN_015",
+          "title": "Temporal clauses (cuando, mientras, hasta que)",
+          "cefr_level": "B1",
+          "cefr_sublevel": "B1.2",
+          "prerequisites": ["B1_V_050"],
+          "enables": [],
+          "category": "syntax",
+          "subcategory": "subordination",
+          "conjunctions": ["cuando", "mientras", "hasta que", "antes de que", "después de que"],
+          "mood_selection": {
+            "indicative": "habitual/past actions",
+            "subjunctive": "future/pending actions"
+          },
+          "difficulty": "hard",
+          "frequency": "high"
+        },
+        "conditional_clauses": {
+          "id": "B1_SYN_020",
+          "title": "Conditional clauses (si + indicative)",
+          "cefr_level": "B1",
+          "cefr_sublevel": "B1.1",
+          "prerequisites": [],
+          "enables": [],
+          "category": "syntax",
+          "subcategory": "subordination",
+          "structure": "si + present indicative, present/future/imperative",
+          "examples": [
+            "Si llueve, me quedo en casa",
+            "Si estudias, aprobarás"
+          ],
+          "note": "Real conditions; contrary-to-fact (si + imperfect subjunctive) is B2",
+          "difficulty": "medium",
+          "frequency": "high"
+        }
+      },
+      "passive": {
+        "passive_se": {
+          "id": "B1_SYN_030",
+          "title": "Passive voice with se",
+          "cefr_level": "B1",
+          "cefr_sublevel": "B1.2",
+          "prerequisites": [],
+          "enables": [],
+          "category": "syntax",
+          "subcategory": "passive",
+          "structure": "se + 3rd person verb",
+          "examples": [
+            "Se habla español aquí",
+            "Se venden pisos"
+          ],
+          "agreement": "Verb agrees with subject",
+          "difficulty": "medium",
+          "frequency": "high"
+        }
+      }
+    }
+  }
+}

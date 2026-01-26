@@ -1472,9 +1472,152 @@ Go to the **Vocabulary** tab to start learning these words!"""
                             outputs=[dele_display]
                         )
 
+                # Grammar Progress Section
+                with gr.Row():
+                    gr.Markdown("## Grammar Progress (Kwiziq Brain Map)")
+
+                with gr.Row():
+                    grammar_level_filter = gr.Dropdown(
+                        choices=["All Levels", "A1", "A2", "B1"],
+                        value="All Levels",
+                        label="Filter by CEFR Level"
+                    )
+                    refresh_grammar_btn = gr.Button("🔄 Refresh", size="sm")
+
+                grammar_summary = gr.Markdown()
+                grammar_topics_display = gr.Dataframe(
+                    headers=["Topic", "Level", "Category", "Status", "Practiced"],
+                    datatype=["str", "str", "str", "str", "number"],
+                    column_count=(5, "fixed"),
+                    interactive=False,
+                    wrap=True
+                )
+
+                # Topic selection and status update
+                with gr.Row():
+                    topic_selector = gr.Dropdown(
+                        choices=[],
+                        label="Select topic to update",
+                        interactive=True
+                    )
+                    topic_status = gr.Radio(
+                        choices=["new", "learning", "learned", "mastered"],
+                        value="new",
+                        label="Set Status",
+                        interactive=True
+                    )
+                    update_topic_btn = gr.Button("Update Status", variant="primary")
+
+                update_status_msg = gr.Markdown()
+
+                def display_grammar_summary():
+                    """Display grammar progress summary"""
+                    from src.database import get_grammar_progress_summary
+
+                    summary = get_grammar_progress_summary()
+
+                    output = f"""### Progress Summary
+
+**Total Topics:** {summary['total_topics']}
+- ✅ **Mastered:** {summary.get('mastered', 0)}
+- 📝 **Learned:** {summary.get('learned', 0)}
+- 📖 **Learning:** {summary.get('learning', 0)}
+- ⭕ **New:** {summary.get('new', 0)}
+
+#### By CEFR Level:
+"""
+                    for level, data in summary['by_level'].items():
+                        bar = "█" * int(data['percentage'] / 10) + "░" * (10 - int(data['percentage'] / 10))
+                        output += f"\n**{level}:** {data['mastered']}/{data['total']} ({data['percentage']}%) {bar}"
+
+                    output += "\n\n#### By Category:\n"
+                    for category, data in summary['by_category'].items():
+                        bar = "█" * int(data['percentage'] / 10) + "░" * (10 - int(data['percentage'] / 10))
+                        output += f"\n**{category.title()}:** {data['mastered']}/{data['total']} ({data['percentage']}%) {bar}"
+
+                    return output
+
+                def display_grammar_topics(level_filter):
+                    """Display grammar topics with progress"""
+                    from src.database import get_grammar_topics_with_progress
+
+                    cefr_level = None if level_filter == "All Levels" else level_filter
+                    topics = get_grammar_topics_with_progress(cefr_level=cefr_level)
+
+                    # Format for dataframe
+                    rows = []
+                    topic_choices = []
+
+                    for topic in topics:
+                        # Status emoji
+                        status_map = {
+                            'mastered': '✅ Mastered',
+                            'learned': '📝 Learned',
+                            'learning': '📖 Learning',
+                            'new': '⭕ New'
+                        }
+                        status = status_map.get(topic.get('mastery_level', 'new'), '⭕ New')
+
+                        rows.append([
+                            topic['title'],
+                            topic['cefr_level'],
+                            topic['category'].title(),
+                            status,
+                            topic.get('times_practiced', 0)
+                        ])
+
+                        topic_choices.append(f"{topic['id']}: {topic['title']}")
+
+                    return rows, gr.Dropdown(choices=topic_choices)
+
+                def update_topic_status(topic_selection, new_status):
+                    """Update a topic's status"""
+                    if not topic_selection:
+                        return "❌ Please select a topic first"
+
+                    from src.database import update_grammar_progress
+
+                    # Extract topic ID from selection
+                    topic_id = topic_selection.split(':')[0].strip()
+
+                    update_grammar_progress(topic_id, new_status)
+
+                    return f"✅ Updated {topic_id} to **{new_status}**"
+
+                # Event handlers
+                refresh_grammar_btn.click(
+                    display_grammar_summary,
+                    outputs=[grammar_summary]
+                ).then(
+                    display_grammar_topics,
+                    inputs=[grammar_level_filter],
+                    outputs=[grammar_topics_display, topic_selector]
+                )
+
+                grammar_level_filter.change(
+                    display_grammar_topics,
+                    inputs=[grammar_level_filter],
+                    outputs=[grammar_topics_display, topic_selector]
+                )
+
+                update_topic_btn.click(
+                    update_topic_status,
+                    inputs=[topic_selector, topic_status],
+                    outputs=[update_status_msg]
+                ).then(
+                    display_grammar_summary,
+                    outputs=[grammar_summary]
+                ).then(
+                    display_grammar_topics,
+                    inputs=[grammar_level_filter],
+                    outputs=[grammar_topics_display, topic_selector]
+                )
+
                 # Load initial displays
                 app.load(get_stats_display, outputs=[stats_display])
                 app.load(lambda: format_readiness_display("A1"), outputs=[dele_display])
+                app.load(display_grammar_summary, outputs=[grammar_summary])
+                app.load(lambda: display_grammar_topics("All Levels"), outputs=[grammar_topics_display, topic_selector])
 
             # ============ Content Discovery Tab ============
             with gr.Tab("🔍 Discover"):
