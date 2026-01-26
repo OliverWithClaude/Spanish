@@ -818,6 +818,72 @@ def get_new_words_display():
 
 # ============ Statistics Tab ============
 
+def display_word_forms_info():
+    """Display word forms generation statistics"""
+    try:
+        from src.word_forms import get_word_forms_count
+        stats = get_word_forms_count()
+
+        if stats['total_forms'] == 0:
+            return """### 💡 Unlock the Multiplication Effect!
+
+**What are Word Forms?**
+
+When you learn a base verb like *hablar* (to speak) and understand present tense conjugation, you can recognize:
+- hablo, hablas, habla, hablamos, habláis, hablan (6 forms!)
+
+**The Effect:**
+- **Base Vocabulary** × **Grammar Knowledge** = **Word Forms You Can Recognize**
+- Example: 50 verbs × 6 conjugations = 300 recognized words!
+
+Click **Generate Word Forms** to multiply your vocabulary comprehension.
+
+**Status:** No word forms generated yet."""
+        else:
+            return f"""### 🎯 Word Forms Statistics
+
+**Multiplication Effect Active!**
+
+- **Base Words:** {stats['base_words_with_forms']} words
+- **Total Forms:** {stats['total_forms']} forms
+- **Generated Forms:** {stats['generated_forms']} additional forms
+- **Multiplier:** {stats['multiplier']:.1f}x
+
+This means you can recognize **{stats['total_forms']} different word forms** in Spanish content, not just {stats['base_words_with_forms']} base words!
+
+Your grammar knowledge is multiplying your vocabulary comprehension by **{stats['multiplier']:.1f}x**.
+
+Click **Generate Word Forms** again to update based on your latest vocabulary and grammar progress."""
+    except Exception as e:
+        return f"Error loading word forms: {e}"
+
+
+def generate_word_forms_ui():
+    """Generate word forms and return status message"""
+    try:
+        from src.word_forms import generate_all_word_forms
+
+        # Show progress
+        result = generate_all_word_forms(force_regenerate=False)
+
+        return f"""### ✅ Word Forms Generated!
+
+**Results:**
+- **Words Processed:** {result['words_processed']}
+- **Total Forms Generated:** {result['total_forms_generated']}
+- **Average Multiplier:** {result['average_multiplier']:.1f}x
+
+Your vocabulary comprehension has been multiplied! These forms will now be recognized when analyzing Spanish content.
+
+**Next Steps:**
+1. Go to **Discover** tab to analyze Spanish content
+2. Import text and see how many words you now recognize
+3. Your comprehension % will reflect the multiplication effect!
+"""
+    except Exception as e:
+        return f"### ❌ Error\n\nFailed to generate word forms: {e}\n\nMake sure Ollama is running and try again."
+
+
 def display_unified_cefr_score():
     """Display unified multi-dimensional CEFR proficiency score"""
     from src.database import calculate_unified_cefr_score
@@ -1512,6 +1578,20 @@ def create_app():
 
                 gr.Markdown("---")
 
+                # Word Forms Generation Section
+                with gr.Row():
+                    gr.Markdown("## 🔄 Word Forms Multiplication Effect")
+
+                with gr.Row():
+                    with gr.Column():
+                        word_forms_info = gr.Markdown()
+                        with gr.Row():
+                            generate_forms_btn = gr.Button("✨ Generate Word Forms", variant="primary", scale=2)
+                            refresh_forms_btn = gr.Button("🔄 Refresh", scale=1)
+                        generation_status = gr.Markdown(visible=True)
+
+                gr.Markdown("---")
+
                 # Original sections
                 with gr.Row():
                     with gr.Column(scale=1):
@@ -1726,12 +1806,27 @@ Go to the **Vocabulary** tab to start learning these words!"""
                     outputs=[unified_score_display, vocab_dimension, grammar_dimension, speaking_dimension, content_dimension, gating_display]
                 )
 
+                # Word forms event handlers
+                refresh_forms_btn.click(
+                    display_word_forms_info,
+                    outputs=[word_forms_info]
+                )
+
+                generate_forms_btn.click(
+                    generate_word_forms_ui,
+                    outputs=[generation_status]
+                ).then(
+                    display_word_forms_info,
+                    outputs=[word_forms_info]
+                )
+
                 # Load initial displays
                 app.load(display_unified_cefr_score, outputs=[unified_score_display, vocab_dimension, grammar_dimension, speaking_dimension, content_dimension, gating_display])
                 app.load(get_stats_display, outputs=[stats_display])
                 app.load(lambda: format_readiness_display("A1"), outputs=[dele_display])
                 app.load(display_grammar_summary, outputs=[grammar_summary])
                 app.load(lambda: display_grammar_topics("All Levels"), outputs=[grammar_topics_display, topic_selector])
+                app.load(display_word_forms_info, outputs=[word_forms_info])
 
             # ============ Content Discovery Tab ============
             with gr.Tab("🔍 Discover"):

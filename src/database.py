@@ -113,6 +113,25 @@ def init_database():
     """)
     # status: 'new', 'learning', 'learned', 'due', 'struggling'
 
+    # Word forms (generated from base vocabulary + grammar knowledge)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS word_forms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            base_word_id INTEGER NOT NULL,
+            form TEXT NOT NULL,
+            form_type TEXT NOT NULL,
+            person TEXT,
+            number TEXT,
+            gender TEXT,
+            tense TEXT,
+            mood TEXT,
+            generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            verified BOOLEAN DEFAULT 0,
+            FOREIGN KEY (base_word_id) REFERENCES vocabulary(id)
+        )
+    """)
+    # form_type: 'verb_conjugation', 'noun_plural', 'adjective_agreement', 'base'
+
     # ============ Phrase Tables ============
 
     # Practice phrases table (enhanced)
@@ -290,6 +309,15 @@ def init_database():
 
     conn.commit()
 
+    # Create indexes for word_forms table (after commit to ensure table exists)
+    try:
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_word_forms_form ON word_forms(form)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_word_forms_base ON word_forms(base_word_id)")
+        conn.commit()
+    except sqlite3.OperationalError:
+        # Table might not exist yet - will be created on next init
+        pass
+
     # Initialize user progress if not exists
     cursor.execute("SELECT COUNT(*) FROM user_progress")
     if cursor.fetchone()[0] == 0:
@@ -302,6 +330,34 @@ def init_database():
     except:
         cursor.execute("ALTER TABLE user_progress ADD COLUMN total_practice_seconds INTEGER DEFAULT 0")
         conn.commit()
+
+    # Migration: Recreate word_forms table with correct schema if old schema exists
+    try:
+        cursor.execute("SELECT base_word_id FROM word_forms LIMIT 1")
+    except sqlite3.OperationalError:
+        # Old schema exists, need to recreate
+        print("Migrating word_forms table to new schema...")
+        cursor.execute("DROP TABLE IF EXISTS word_forms")
+        cursor.execute("""
+            CREATE TABLE word_forms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                base_word_id INTEGER NOT NULL,
+                form TEXT NOT NULL,
+                form_type TEXT NOT NULL,
+                person TEXT,
+                number TEXT,
+                gender TEXT,
+                tense TEXT,
+                mood TEXT,
+                generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                verified BOOLEAN DEFAULT 0,
+                FOREIGN KEY (base_word_id) REFERENCES vocabulary(id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_word_forms_form ON word_forms(form)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_word_forms_base ON word_forms(base_word_id)")
+        conn.commit()
+        print("Word forms table migration complete.")
 
     conn.close()
 

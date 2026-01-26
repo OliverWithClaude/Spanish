@@ -66,6 +66,9 @@ class ContentAnalysis:
     source_text: str = ""
     analyzed_at: str = ""
 
+    # Word forms contribution (multiplication effect)
+    word_forms_matched: int = 0
+
     @property
     def is_ready_to_consume(self) -> bool:
         """Check if user knows enough vocabulary to comfortably consume this content."""
@@ -544,9 +547,29 @@ def analyze_content(text: str, include_stop_words: bool = False) -> ContentAnaly
     # This helps with words the user has seen but hasn't fully mastered
     all_vocab = get_user_vocabulary(None)
 
+    # ENHANCEMENT: Include generated word forms in matching
+    # This implements the multiplication effect: base vocabulary × grammar = word forms
+    try:
+        from src.word_forms import get_all_word_forms
+        word_forms = get_all_word_forms()
+        all_known_with_forms = all_known | word_forms
+    except Exception as e:
+        print(f"Note: Word forms not available: {e}")
+        all_known_with_forms = all_known
+        word_forms = set()
+
     # Categorize words
+    # First check against base vocabulary (lemmas)
     known_words = unique_lemmas & learned
     learning_words = unique_lemmas & learning
+
+    # Then check against word forms (non-lemmatized tokens)
+    # This catches conjugated verbs, plurals, etc. that the user can recognize
+    unique_tokens = set(tokens)
+    known_word_forms = unique_tokens & word_forms
+
+    # Combine: words matched via lemma + words matched via forms
+    total_known_unique = known_words | known_word_forms
 
     # New words are lemmas not in user's vocabulary
     # We only use lemmas to ensure we store base forms (infinitives, singular nouns)
@@ -607,9 +630,11 @@ def analyze_content(text: str, include_stop_words: bool = False) -> ContentAnaly
 
     # Calculate comprehension percentage
     # Based on unique words the user knows vs total unique words
+    # ENHANCED: Now includes word forms recognition
     if unique_count > 0:
-        # Count known + learning + stop words as "comprehensible"
-        comprehensible = len(known_words) + len(learning_words)
+        # Count known + learning + word_forms + stop words as "comprehensible"
+        # This reflects the multiplication effect: base vocab × grammar = comprehension
+        comprehensible = len(total_known_unique) + len(learning_words)
         if not include_stop_words:
             # Add back stop words that were in the text
             stop_in_text = len({lemmatize_spanish(t) for t in tokens} & STOP_WORDS)
@@ -620,6 +645,9 @@ def analyze_content(text: str, include_stop_words: bool = False) -> ContentAnaly
             comprehension_pct = (comprehensible / unique_count) * 100
     else:
         comprehension_pct = 100.0
+
+    # Calculate word forms contribution to comprehension
+    word_forms_matched = len(known_word_forms) if 'known_word_forms' in locals() else 0
 
     return ContentAnalysis(
         total_words=total_words,
@@ -633,6 +661,7 @@ def analyze_content(text: str, include_stop_words: bool = False) -> ContentAnaly
         comprehension_pct=min(100.0, comprehension_pct),
         new_words_details=new_words_details,
         source_text=text[:500] + "..." if len(text) > 500 else text,
+        word_forms_matched=word_forms_matched,  # NEW: Track word forms contribution
         analyzed_at=datetime.now().isoformat()
     )
 
