@@ -143,23 +143,24 @@ def get_user_grammar_knowledge() -> dict:
 
     # Check which grammar topics user has mastered (learned or mastered status)
     cursor.execute("""
-        SELECT gt.name, gup.status
+        SELECT gt.title, gup.status
         FROM grammar_topics gt
         LEFT JOIN grammar_user_progress gup ON gt.id = gup.grammar_topic_id
         WHERE gup.status IN ('learned', 'mastered')
         OR gt.cefr_level = 'A1'
     """)
 
-    mastered_topics = {row[0] for row in cursor.fetchall() if row[0]}
+    mastered_topics = {row[0].lower() for row in cursor.fetchall() if row[0]}
     conn.close()
 
     # Map grammar topics to generation flags
+    # For now, assume basic A1 grammar knowledge for all users
     return {
-        'present_tense': any(topic in mastered_topics for topic in ['present_regular', 'present_irregular', 'present_tense']),
-        'preterite_tense': 'preterite' in mastered_topics or 'preterite_tense' in mastered_topics,
-        'imperfect_tense': 'imperfect' in mastered_topics or 'imperfect_tense' in mastered_topics,
-        'future_tense': 'future' in mastered_topics or 'future_tense' in mastered_topics,
-        'conditional': 'conditional' in mastered_topics,
+        'present_tense': True,  # Assume A1 present tense knowledge
+        'preterite_tense': any('preterite' in topic or 'pretérito' in topic for topic in mastered_topics),
+        'imperfect_tense': any('imperfect' in topic for topic in mastered_topics),
+        'future_tense': any('future' in topic or 'futuro' in topic for topic in mastered_topics),
+        'conditional': any('conditional' in topic for topic in mastered_topics),
         'noun_plurals': True,  # Assume A1 knowledge
         'adjective_agreement': True  # Assume A1 knowledge
     }
