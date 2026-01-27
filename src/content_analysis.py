@@ -69,6 +69,11 @@ class ContentAnalysis:
     # Word forms contribution (multiplication effect)
     word_forms_matched: int = 0
 
+    # Grammar patterns analysis
+    grammar_readiness: float = 0.0
+    grammar_patterns_matched: List[Dict] = field(default_factory=list)
+    grammar_patterns_unknown: List[Dict] = field(default_factory=list)
+
     @property
     def is_ready_to_consume(self) -> bool:
         """Check if user knows enough vocabulary to comfortably consume this content."""
@@ -649,6 +654,18 @@ def analyze_content(text: str, include_stop_words: bool = False) -> ContentAnaly
     # Calculate word forms contribution to comprehension
     word_forms_matched = len(known_word_forms) if 'known_word_forms' in locals() else 0
 
+    # Analyze grammar patterns
+    try:
+        from src.grammar_patterns import compare_grammar_with_user
+        grammar_result = compare_grammar_with_user(text)
+    except Exception as e:
+        print(f"Note: Grammar pattern detection not available: {e}")
+        grammar_result = {
+            'grammar_readiness': 0.0,
+            'matched_patterns': [],
+            'unknown_patterns': []
+        }
+
     return ContentAnalysis(
         total_words=total_words,
         unique_words=unique_count,
@@ -661,8 +678,11 @@ def analyze_content(text: str, include_stop_words: bool = False) -> ContentAnaly
         comprehension_pct=min(100.0, comprehension_pct),
         new_words_details=new_words_details,
         source_text=text[:500] + "..." if len(text) > 500 else text,
-        word_forms_matched=word_forms_matched,  # NEW: Track word forms contribution
-        analyzed_at=datetime.now().isoformat()
+        word_forms_matched=word_forms_matched,  # Track word forms contribution
+        analyzed_at=datetime.now().isoformat(),
+        grammar_readiness=grammar_result['grammar_readiness'],
+        grammar_patterns_matched=grammar_result['matched_patterns'],
+        grammar_patterns_unknown=grammar_result['unknown_patterns']
     )
 
 

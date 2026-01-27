@@ -1030,8 +1030,34 @@ def analyze_text_content(text: str):
 | **Comprehension** | {result.comprehension_pct:.1f}% |
 | **Difficulty** | {result.difficulty_label} |
 
-### Recommendation
-{get_comprehension_recommendation(result)}
+### Grammar Analysis
+
+**Grammar Readiness:** {result.grammar_readiness:.1f}%
+
+"""
+
+        # Add grammar patterns matched
+        if result.grammar_patterns_matched:
+            summary += "**Grammar You Know:**\n"
+            for pattern in result.grammar_patterns_matched:
+                summary += f"- ✅ {pattern['display_name']} ({pattern['count']} uses)\n"
+            summary += "\n"
+
+        # Add unknown grammar patterns
+        if result.grammar_patterns_unknown:
+            summary += "**Grammar to Learn:**\n"
+            for pattern in result.grammar_patterns_unknown:
+                summary += f"- ❌ {pattern['display_name']} ({pattern['count']} uses)\n"
+            summary += "\n"
+
+        # Grammar recommendation
+        from src.grammar_patterns import get_grammar_recommendation
+        grammar_rec = get_grammar_recommendation(
+            {'grammar_readiness': result.grammar_readiness,
+             'unknown_patterns': result.grammar_patterns_unknown},
+            result.comprehension_pct
+        )
+        summary += f"### Recommendation\n{grammar_rec}\n"
 """
 
         # Build new words display
