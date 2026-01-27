@@ -33,12 +33,14 @@ ollama pull llama3.2
 | `app.py` | Main Gradio UI with 9 tabs, global state, session tracking |
 | `src/audio.py` | Whisper transcription + Edge TTS generation |
 | `src/llm.py` | Ollama chat integration + system prompts for different personas |
-| `src/database.py` | SQLite schema, SM-2 spaced repetition, XP/progress tracking |
+| `src/database.py` | SQLite schema, SM-2 spaced repetition, XP/progress tracking, CEFR scoring |
 | `src/content.py` | 429 vocabulary words + 204 phrases (CEFR A1-A2) |
 | `src/images.py` | Unsplash API integration for vocabulary images |
 | `src/dele_tracker.py` | DELE exam readiness tracking and vocabulary gap analysis |
-| `src/content_analysis.py` | Text analysis, tokenization, vocabulary comparison |
+| `src/content_analysis.py` | Text analysis, tokenization, vocabulary + grammar comparison |
 | `src/frequency_data.py` | Spanish word frequency data (~5000 words) |
+| `src/word_forms.py` | Vocabulary multiplication: generates conjugations, plurals, agreement forms |
+| `src/grammar_patterns.py` | SpaCy-based grammar pattern detection and readiness assessment |
 
 ### Key Data Flows
 
@@ -50,9 +52,13 @@ ollama pull llama3.2
 
 **DELE Readiness**: `calculate_dele_readiness(level)` → compares user vocabulary against DELE topic requirements → weighted scoring (learned=1.0, learning=0.5) → displays progress in Progress tab
 
-**Content Discovery**: Paste text → `analyze_content()` → tokenize/lemmatize → compare against user vocabulary → create package → `add_package_words_to_vocabulary()`
+**Content Discovery**: Paste text → `analyze_content()` → tokenize/lemmatize → compare against user vocabulary + word forms + grammar patterns → create package → `add_package_words_to_vocabulary()`
 
 **Grammar Progress Tracking**: User marks Kwiziq topics as learned → `update_grammar_progress()` → stores status (new/learning/learned/mastered) → `get_grammar_progress_summary()` → displays progress by CEFR level and category in Progress tab
+
+**Word Forms Generation**: User clicks "Generate Word Forms" → `generate_all_word_forms()` → LLM generates conjugations/plurals/agreements for learned vocabulary → stores in `word_forms` table → content matching now includes generated forms (multiplication effect)
+
+**Grammar Pattern Detection**: Import content → `compare_grammar_with_user()` → SpaCy detects verb tenses/structures → compares with user's grammar knowledge → shows grammar readiness % + matched/unknown patterns → recommendation based on vocab + grammar
 
 ### State Management
 
